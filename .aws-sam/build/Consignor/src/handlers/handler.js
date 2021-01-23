@@ -1,8 +1,6 @@
 
 const axios = require('axios');
 
-const querystring = require('querystring');
-
 var AWS = require('aws-sdk');
 AWS.config.update({region:'eu-west-1'});
 
@@ -133,13 +131,13 @@ exports.handleWebhook = async (input, x) => {
 
 async function getWebshipper(serverName, apiKey) {
     
-    let baseUrl = 'https://' + serverName + '.api.webshipper.io/';
+    let baseUrl = 'https://' + serverName + '.api.webshipper.io/v2/';
     
     console.log(baseUrl);
     
     let webshipper = axios.create({
     		baseURL: baseUrl, 
-    		headers: { "Authorization": "Bearer " + apiKey }
+    		headers: { "Authorization": "Bearer " + apiKey, "Content-Type": "application/vnd.api+json" }
     	});
     	
     webshipper.interceptors.response.use(function (response) {
@@ -239,6 +237,7 @@ async function createShipment(ims, ws, order, shippingRate) {
 		shipmentLine.notesOnPicking = orderLine.description;
 		shipmentLine.sellersReference = orderLine.id;
 		shipmentLine.stockKeepingUnit = orderLine.sku;
+		shipmentLine.sellersReference = orderLine.id;
 		shipment.shipmentLines.push(shipmentLine);
 	}
 
@@ -271,10 +270,15 @@ async function updateShipment(ims, ws, shipment, order, shippingRate) {
 		
 	let patch = new Object();
 	patch.currencyCode = attributes.currency;
+	/*
+	
+	Change patch method or use old convention (_)
+	
 	patch.deliveryAddress = new Object();
 	setAddress(attributes.delivery_address, patch.deliveryAddress);
 	patch.contactPerson = new Object();
 	setContactPerson(attributes.delivery_address, patch.contactPerson);
+	*/
 	patch.notesOnDelivery = attributes.external_comment ;
 	patch.notesOnPacking = attributes.internal_comment ;
 	patch.notesOnShipping = shippingRate.data.attributes.name;
@@ -290,7 +294,7 @@ async function updateShipment(ims, ws, shipment, order, shippingRate) {
 	
 	
 	if (response.status == 422) {
-		await errOrder(ws, order, response.data);
+		await errOrder(ws, order, response.data); 
 	}
 
 }
@@ -325,8 +329,6 @@ exports.handleOrder = async (event, context) => {
 
     	let ws = await getWebshipper(setup.serverName, setup.apiKey);
 
-//    	console.log(message.body);
-    
     	let order = JSON.parse(message.body);
     	
     	let response = await ws.get(order.data.relationships.shipping_rate.links.related);
@@ -348,11 +350,13 @@ exports.handleOrder = async (event, context) => {
 
 		} else {
 		    
-		    // We already have one or more shipments related to this order - so update all shipments !?
+		    // We already have one or more shipments related to this order - so update all shipments without delivery note
 		    
 		    for (let i = 0; i < shipments.length; i++) {
 		        let shipment = shipments[i];
-		        await updateShipment(ims, ws, shipment, order, shippingRate);
+		        if (shipment.deliveryNoteId == null) {
+			        await updateShipment(ims, ws, shipment, order, shippingRate);
+		        } 
 		    }
 		    
 		}
@@ -362,10 +366,210 @@ exports.handleOrder = async (event, context) => {
     return null;         
 };
 
-function createWebshipperShipment(order, shipment) {
+function createWebshipperShipment(ws, order, shipment, instances) {
     
-    // So this is where it get insteresting
+	// Make a map of SKU on instances
+
+    var instanceMap = new Map();
+	for (let i = 0; i < instances.length; i++) {
+		let instance = instances[i];
+		let instancesWithThisSku = [];
+		if (instanceMap.has(instance.stockKeepingUnit)) {
+			instancesWithThisSku = instanceMap.get(instance.stockKeepingUnit);
+		}
+		instancesWithThisSku.push(instance);
+		instanceMap.set(instance.stockKeepingUnit, instancesWithThisSku)
+	}
+	
+	// Make a map of SKU on order lines
+
+	var orderLineMap = new Map();
+	for (let i = 0; i < order.data.attributes.order_lines.length; i++) {
+		let orderLine = order.data.attributes.order_lines[i];
+		if (orderLine.package_id == null) {
+			let orderLinesWithThisSku = [];
+			if (orderLineMap.has(orderLine.sku)) {
+				orderLinesWithThisSku = orderLineMap.get(orderLine.sku);			
+			}
+			orderLinesWithThisSku.push(orderLine);
+			orderLineMap.set(orderLine.sku, orderLinesWithThisSku);
+		}
+	}
+	
+	console.log(JSON.stringify(orderLineMap));
+	console.log(JSON.stringify(instanceMap));
+	
+	// Reconcile instances against order lines
+
+	let newOrderLines = [];
+	
+	instanceMap.forEach(function(instances, sku) {
+		for (let i = 0; i < instances.length; i++) {
+			let instance = instances[i];
+			let orderLines = orderLineMap.get(sku);
+			let remaining = instance.instanceCount;
+			let j = 0;
+			while (remaining > 0 && j < orderLines.length) {
+				let oldOrderLine = orderLines[j];				
+				let newOrderLine = new Object();
+				if (instance.instanceCount < oldOrderLine.quantity) {
+					oldOrderLine.quantity = oldOrderLine.quantity - instance.instanceCount;
+					newOrderLine.quantity = instance.instanceCount;
+					remaining = 0;
+				} else {
+					oldOrderLine.quantity = 0;
+					newOrderLine.quantity = oldOrderLine.quantity;
+					remaining = instance.instanceCount - oldOrderLine.quantity;
+				}	
+				newOrderLine.sku = instance.stockKeepingUnit;
+				newOrderLine.country_of_origin = oldOrderLine.country_of_origin;
+				newOrderLine.ext_ref = oldOrderLine.ext_ref;
+				newOrderLines.push(newOrderLine);
+			}
+		}		
+	});	
+	
+	console.log(JSON.stringify(newOrderLines));
+	
+	// Push old order lines with a left over quantity to the new order lines
+	
+	orderLineMap.forEach(function(orderLines, sku) {
+		for (let i = 0; i < orderLines.length; i++) {
+			let orderLine = orderLines[i];
+			if (orderLine.quantity > 0) {
+				newOrderLines.push(orderLine);
+			}
+		}	
+	});
+	
+	console.log(JSON.stringify(newOrderLines));
+
+	// Now patch the order
+	
+	let patch = new Object();
+	let data = new Object();
+	data.id = order.id;
+	data.type = "orders";
+	patch.data = data;
+	let attributes = new Object();
+	attributes.order_lines = newOrderLines;
+	data.attributes = attributes;
+	let response = ws.patch("orders/" + order.data.id, patch);
+	order = response.data;
+	let orderLines = order.data.attributes.order_lines;
+	
+	// Iterate over shipping containers
+
+    let packages = [];
+    let shippingContainers = shipment.shippingContainers;
+    for (let i = 0; i < shippingContainers.length; i++) {
+		let shippingContainer = shippingContainers[i];
+		let package = new Object();
+
+	    package.weight = shippingContainer.grossWeight;
+	    package.weight_unit = 'kg';
+	    package.dimensions = shippingContainer.dimensions;
+
+	    // Order lines
+
+		package.order_lines = [];
+		for (let j = 0; j < instances.length; j++) {
+			let instance = instances[j];
+			if (instances.shippingContainerId == shippingContainer.id) {
+			
+				// Find a matching order line
+				
+				let k = 0;
+				let found = false;
+				while (k < orderLines.length && !found) {
+					let orderLine = orderLines[k];
+					if (orderLine.sku == instance.stockKeepingUnit && orderLine.quantity == instance.quantity && orderLine.package_id == null) {
+						found = true;
+					} else {
+						k++;
+					}	
+				}
+				
+				// Remove the found order line from the list and add it to the list of order lines in this package
+				
+				if (!found) {
+					throw new Error("Could not find matching order line");
+				}
+				
+				package.order_lines.push(orderLines.splice(k, 1)[0]);
+				
+			}
+		}
+	
+		// Custom lines
+		/*
+	    "id",
+	    "package_id",
+	    "sku",
+	    "description",
+	    "quantity",
+	    "tarif_number",
+	    "country_of_origin",
+	    "unit_price",
+	    "vat_percent",
+	    "currency",
+	    "created_at",
+	    "updated_at",
+	    "weight",
+	    "weight_unit"
+	    
+	    package.customs_lines = customLines;
+	    */
+	    
+	    packages.push(package);
+    }
+
+    var webshipperShipment = new Object();
+    data = new Object();
+    attributes = new Object();
+    let relationships = new Object();
+    data.attributes = attributes;
+    webshipperShipment.data = data;
+    data.relationships = relationships;
+
+	// State relationship to order
+
+	relationships.order = order;
+
+	// Shipment
+
+    attributes.reference = shipment.shipmentNumber;
+    attributes.comment = shipment.notesOnDelivery;
     
+    /* Not relevant because we assumme shipping rate 
+    attributes.service_code 
+    attributes.service_attributes 
+    attributes.add_ons
+    attributes.sms_notification 
+    attributes.email_notification 
+    */
+
+	// Use the delivery address from IMS thereby allowing thw warehouse worker to do last minute changes
+	
+    attributes.delivery_address = shipment.deliveryAddress; // Need function for this
+    let dropPoint = new Object();
+    dropPoint.dropPointId = shipment.pickUpPointId;
+    attributes.drop_point = dropPoint;
+    
+    /* Copied from order when we provide a relationship
+    attributes.sender_address = order.sender_address;
+    attributes.billing_address = order.billing_address;
+    attributes.pickup_address = order.pickup_address;
+    attributes.return_address = order.return_address;
+    */
+    
+    attributes.fulfill_immediately = true;
+    attributes.test_mode = false;
+
+    attributes.packages = packages;
+
+    return webshipperShipment;
+
 }
 
 exports.handleShippingLabelRequest = async (event, x) => {
@@ -384,17 +588,220 @@ exports.handleShippingLabelRequest = async (event, x) => {
 
 	let ws = await getWebshipper(setup.serverName, setup.apiKey);
         	
-    let shipment = ims.get("shipments/" + detail.shipmentId);
-	    		
-	// Adjust og delete lines that have been changed or deleted in Thetis IMS
+    let response = await ims.get("shipments/" + detail.shipmentId);
+	let shipment = response.data;
+	
+    response = await ims.get("shipments/" + detail.shipmentId + "/globalTradeItemInstances");
+	let instances = response.data;
 
-	let response = await ws.get("orders/" + shipment.getSellersReference());
+	response = await ws.get("orders/" + shipment.sellersReference);
 	let order = response.data;
 
-	// Create a Webshipper shipment
+	// Make a map of SKU on instances
+
+    var instanceMap = new Map();
+	for (let i = 0; i < instances.length; i++) {
+		let instance = instances[i];
+		let instancesWithThisSku = [];
+		if (instanceMap.has(instance.stockKeepingUnit)) {
+			instancesWithThisSku = instanceMap.get(instance.stockKeepingUnit);
+		}
+		instancesWithThisSku.push(instance);
+		instanceMap.set(instance.stockKeepingUnit, instancesWithThisSku);
+	}
+
+	// A list of the order lines that must replace the current order lines
 	
-	let webshipperShipment = createWebshipperShipment(order, shipment);
-	response = await ws.post("shipments", webshipperShipment, { validateStatus: function (status) {
+	let newOrderLines = [];
+	
+	// Make a map of SKU on order lines
+
+	var orderLineMap = new Map();
+	for (let i = 0; i < order.data.attributes.order_lines.length; i++) {
+		let orderLine = order.data.attributes.order_lines[i];
+		if (orderLine.package_id == null) { 
+			let orderLines = [];
+			if (orderLineMap.has(orderLine.sku)) {
+				orderLines = orderLineMap.get(orderLine.sku);
+			}
+			orderLines.push(orderLine);
+			orderLineMap.set(orderLine.sku, orderLines);
+		} else {
+			newOrderLines.push(orderLine);
+		}
+	}
+	
+	// Reconcile instances against order lines
+
+	instanceMap.forEach(function(instances, sku) {
+		for (let i = 0; i < instances.length; i++) {
+			let instance = instances[i];
+			let orderLines = orderLineMap.get(sku);
+			let remaining = instance.instanceCount;
+			let j = 0;
+			while (remaining > 0 && j < orderLines.length) {
+				let oldOrderLine = orderLines[j];				
+				let newOrderLine = new Object();
+				if (instance.instanceCount < oldOrderLine.quantity) {
+					oldOrderLine.quantity = oldOrderLine.quantity - instance.instanceCount;
+					newOrderLine.quantity = instance.instanceCount;
+					remaining = 0;
+				} else {
+					oldOrderLine.quantity = 0;
+					newOrderLine.quantity = oldOrderLine.quantity;
+					remaining = instance.instanceCount - oldOrderLine.quantity;
+				}	
+				newOrderLine.sku = instance.stockKeepingUnit;
+				newOrderLine.country_of_origin = oldOrderLine.country_of_origin;
+				newOrderLine.ext_ref = oldOrderLine.ext_ref;
+				newOrderLine.description = oldOrderLine.description + " (leveret)";
+				newOrderLine.location = oldOrderLine.location;
+				newOrderLine.tarif_number = oldOrderLine.tarif_number;
+				newOrderLine.country_of_origin = oldOrderLine.country_of_origin;
+				newOrderLine.unit_price = oldOrderLine.unit_price;
+				newOrderLine.discounted_unit_price = oldOrderLine.discounted_unit_price;
+				newOrderLine.discount_value = oldOrderLine.discount_value;
+				newOrderLine.discount_type = oldOrderLine.discount_type;
+				newOrderLine.vat_percent = oldOrderLine.vat_percent;
+				newOrderLine.weight = oldOrderLine.weight;
+				newOrderLine.weight_unit = oldOrderLine.weight_unit;
+				newOrderLine.order_id = oldOrderLine.order_id;
+				newOrderLine.is_virtual = oldOrderLine.is_virtual;
+				newOrderLines.push(newOrderLine);
+				j++;
+			}
+		}		
+	});	
+	
+	// Push old order lines with a left over quantity to the new order lines
+	
+	orderLineMap.forEach(function(orderLines, sku) {
+		for (let i = 0; i < orderLines.length; i++) {
+			let orderLine = orderLines[i];
+			if (orderLine.quantity > 0) {
+				newOrderLines.push(orderLine);
+			}
+		}	
+	});
+	
+	// Now patch the order
+	
+	order.data.attributes.order_lines = newOrderLines;
+	response = await ws.patch("orders/" + order.data.id, order);
+	order = response.data;
+	let orderLines = order.data.attributes.order_lines;
+	
+	// Iterate over shipping containers
+
+    let packages = [];
+    let shippingContainers = shipment.shippingContainers;
+    for (let i = 0; i < shippingContainers.length; i++) {
+		let shippingContainer = shippingContainers[i];
+		let package = new Object();
+
+	    package.weight = shippingContainer.grossWeight;
+	    package.weight_unit = 'kg';
+	    package.dimensions = shippingContainer.dimensions;
+
+	    // Order lines
+
+		package.order_lines = [];
+		for (let j = 0; j < instances.length; j++) {
+			let instance = instances[j];
+			if (instances.shippingContainerId == shippingContainer.id) {
+			
+				// Find a matching order line
+				
+				let k = 0;
+				let found = false;
+				while (k < orderLines.length && !found) {
+					let orderLine = orderLines[k];
+					if (orderLine.sku == instance.stockKeepingUnit && orderLine.quantity == instance.quantity && orderLine.package_id == null) {
+						found = true;
+					} else {
+						k++;
+					}	
+				}
+				
+				// Remove the found order line from the list and add it to the list of order lines in this package
+				
+				if (!found) {
+					throw new Error("Could not find matching order line");
+				}
+				
+				package.order_lines.push(orderLines.splice(k, 1)[0]);
+				
+			}
+		}
+	
+		// Custom lines
+		/*
+	    "id",
+	    "package_id",
+	    "sku",
+	    "description",
+	    "quantity",
+	    "tarif_number",
+	    "country_of_origin",
+	    "unit_price",
+	    "vat_percent",
+	    "currency",
+	    "created_at",
+	    "updated_at",
+	    "weight",
+	    "weight_unit"
+	    
+	    package.customs_lines = customLines;
+	    */
+	    
+	    packages.push(package);
+    }
+
+    var webshipperShipment = new Object();
+    let data = new Object();
+    let attributes = new Object();
+    let relationships = new Object();
+    data.attributes = attributes;
+    webshipperShipment.data = data;
+    data.relationships = relationships;
+
+	// State relationship to order
+
+	relationships.order = order;
+
+	// Shipment
+
+    attributes.reference = shipment.shipmentNumber;
+    attributes.comment = shipment.notesOnDelivery;
+    
+    /* Not relevant because we assumme shipping rate 
+    attributes.service_code 
+    attributes.service_attributes 
+    attributes.add_ons
+    attributes.sms_notification 
+    attributes.email_notification 
+    */
+
+	// Use the delivery address from IMS thereby allowing thw warehouse worker to do last minute changes
+	
+    attributes.delivery_address = shipment.deliveryAddress; // Need function for this
+    let dropPoint = new Object();
+    dropPoint.dropPointId = shipment.pickUpPointId;
+    attributes.drop_point = dropPoint;
+    
+    /* Copied from order when we provide a relationship
+    attributes.sender_address = order.sender_address;
+    attributes.billing_address = order.billing_address;
+    attributes.pickup_address = order.pickup_address;
+    attributes.return_address = order.return_address;
+    */
+    
+    attributes.fulfill_immediately = true;
+    attributes.test_mode = false;
+
+    attributes.packages = packages;
+
+ 	response = await ws.post("shipments", webshipperShipment, { validateStatus: function (status) {
 		    return status >= 200 && status < 300 || status == 422; // default
 		}});
 	
@@ -428,7 +835,7 @@ exports.handleShippingLabelRequest = async (event, x) => {
 		
 		// Attach labels for all return shipments to IMS shipment
 		
-		response = await ws.get(webshipperShipment.data.relationships.returnShipments.links);
+		response = await ws.get(webshipperShipment.data.relationships.return_shipments.links);
 		let returnShipments = response.data.data;
 		for (let i = 0; i < returnShipments.length; i++) {
 		    let returnShipment = returnShipments[i];
@@ -446,7 +853,7 @@ exports.handleShippingLabelRequest = async (event, x) => {
 	    // Update IMS shipment with tracking number etc.
 	    
 		let shippingContainers = shipment.shippingContainers;
-		let trackingLinks = webshipperShipment.data.attributes.trackingLinks;
+		let trackingLinks = webshipperShipment.data.attributes.tracking_links;
 		for (let i = 0; i < trackingLinks.length; i++) {
 		    let trackingLink = trackingLinks[i];
 		    let shippingContainer = shippingContainers[i];
@@ -463,6 +870,8 @@ exports.handleShippingLabelRequest = async (event, x) => {
 		message.messageType = "INFO";
 		message.messageText = "Labels are ready";
 		ims.post("events/" + detail.getEventId() + "/messages", message);
+		
 	}
 };
+
 

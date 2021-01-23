@@ -131,13 +131,13 @@ exports.handleWebhook = async (input, x) => {
 
 async function getWebshipper(serverName, apiKey) {
     
-    let baseUrl = 'https://' + serverName + '.api.webshipper.io/';
+    let baseUrl = 'https://' + serverName + '.api.webshipper.io/v2/';
     
     console.log(baseUrl);
     
     let webshipper = axios.create({
     		baseURL: baseUrl, 
-    		headers: { "Authorization": "Bearer " + apiKey }
+    		headers: { "Authorization": "Bearer " + apiKey, "Content-Type": "application/vnd.api+json" }
     	});
     	
     webshipper.interceptors.response.use(function (response) {
@@ -373,22 +373,31 @@ function createWebshipperShipment(ws, order, shipment, instances) {
     var instanceMap = new Map();
 	for (let i = 0; i < instances.length; i++) {
 		let instance = instances[i];
-		let instances = [];
+		let instancesWithThisSku = [];
 		if (instanceMap.has(instance.stockKeepingUnit)) {
-			instances = instanceMap.get(instance.stockKeepingUnit);
+			instancesWithThisSku = instanceMap.get(instance.stockKeepingUnit);
 		}
-		instances.push(instance);
+		instancesWithThisSku.push(instance);
+		instanceMap.set(instance.stockKeepingUnit, instancesWithThisSku)
 	}
 	
 	// Make a map of SKU on order lines
 
 	var orderLineMap = new Map();
-	for (let i = 0; i < order.order_lines.length; i++) {
-		let orderLine = order.order_lines[i];
+	for (let i = 0; i < order.data.attributes.order_lines.length; i++) {
+		let orderLine = order.data.attributes.order_lines[i];
 		if (orderLine.package_id == null) {
-			orderLineMap.set(orderLine.sku, orderLine);
+			let orderLinesWithThisSku = [];
+			if (orderLineMap.has(orderLine.sku)) {
+				orderLinesWithThisSku = orderLineMap.get(orderLine.sku);			
+			}
+			orderLinesWithThisSku.push(orderLine);
+			orderLineMap.set(orderLine.sku, orderLinesWithThisSku);
 		}
 	}
+	
+	console.log(JSON.stringify(orderLineMap));
+	console.log(JSON.stringify(instanceMap));
 	
 	// Reconcile instances against order lines
 
@@ -420,6 +429,8 @@ function createWebshipperShipment(ws, order, shipment, instances) {
 		}		
 	});	
 	
+	console.log(JSON.stringify(newOrderLines));
+	
 	// Push old order lines with a left over quantity to the new order lines
 	
 	orderLineMap.forEach(function(orderLines, sku) {
@@ -431,10 +442,19 @@ function createWebshipperShipment(ws, order, shipment, instances) {
 		}	
 	});
 	
+	console.log(JSON.stringify(newOrderLines));
+
 	// Now patch the order
 	
-	order.data.attributes.order_lines = newOrderLines;
-	let response = ws.patch("orders", order);
+	let patch = new Object();
+	let data = new Object();
+	data.id = order.id;
+	data.type = "orders";
+	patch.data = data;
+	let attributes = new Object();
+	attributes.order_lines = newOrderLines;
+	data.attributes = attributes;
+	let response = ws.patch("orders/" + order.data.id, patch);
 	order = response.data;
 	let orderLines = order.data.attributes.order_lines;
 	
@@ -505,8 +525,8 @@ function createWebshipperShipment(ws, order, shipment, instances) {
     }
 
     var webshipperShipment = new Object();
-    let data = new Object();
-    let attributes = new Object();
+    data = new Object();
+    attributes = new Object();
     let relationships = new Object();
     data.attributes = attributes;
     webshipperShipment.data = data;
@@ -574,7 +594,7 @@ exports.handleShippingLabelRequest = async (event, x) => {
     response = await ims.get("shipments/" + detail.shipmentId + "/globalTradeItemInstances");
 	let instances = response.data;
 
-	response = await ws.get("orders/" + shipment.getSellersReference());
+	response = await ws.get("orders/" + shipment.sellersReference);
 	let order = response.data;
 
 	// Make a map of SKU on instances
@@ -582,12 +602,12 @@ exports.handleShippingLabelRequest = async (event, x) => {
     var instanceMap = new Map();
 	for (let i = 0; i < instances.length; i++) {
 		let instance = instances[i];
-		let instances = [];
+		let instancesWithThisSku = [];
 		if (instanceMap.has(instance.stockKeepingUnit)) {
-			instances = instanceMap.get(instance.stockKeepingUnit);
+			instancesWithThisSku = instanceMap.get(instance.stockKeepingUnit);
 		}
-		instances.push(instance);
-		instanceMap.set(instance.stockKeepingUnit, instances);
+		instancesWithThisSku.push(instance);
+		instanceMap.set(instance.stockKeepingUnit, instancesWithThisSku);
 	}
 
 	// A list of the order lines that must replace the current order lines
@@ -597,8 +617,8 @@ exports.handleShippingLabelRequest = async (event, x) => {
 	// Make a map of SKU on order lines
 
 	var orderLineMap = new Map();
-	for (let i = 0; i < order.order_lines.length; i++) {
-		let orderLine = order.order_lines[i];
+	for (let i = 0; i < order.data.attributes.order_lines.length; i++) {
+		let orderLine = order.data.attributes.order_lines[i];
 		if (orderLine.package_id == null) { 
 			let orderLines = [];
 			if (orderLineMap.has(orderLine.sku)) {
@@ -634,7 +654,7 @@ exports.handleShippingLabelRequest = async (event, x) => {
 				newOrderLine.sku = instance.stockKeepingUnit;
 				newOrderLine.country_of_origin = oldOrderLine.country_of_origin;
 				newOrderLine.ext_ref = oldOrderLine.ext_ref;
-				newOrderLine.description = oldOrderLine.description;
+				newOrderLine.description = oldOrderLine.description + " (leveret)";
 				newOrderLine.location = oldOrderLine.location;
 				newOrderLine.tarif_number = oldOrderLine.tarif_number;
 				newOrderLine.country_of_origin = oldOrderLine.country_of_origin;
@@ -648,6 +668,7 @@ exports.handleShippingLabelRequest = async (event, x) => {
 				newOrderLine.order_id = oldOrderLine.order_id;
 				newOrderLine.is_virtual = oldOrderLine.is_virtual;
 				newOrderLines.push(newOrderLine);
+				j++;
 			}
 		}		
 	});	
@@ -666,7 +687,7 @@ exports.handleShippingLabelRequest = async (event, x) => {
 	// Now patch the order
 	
 	order.data.attributes.order_lines = newOrderLines;
-	response = ws.patch("orders", order);
+	response = await ws.patch("orders/" + order.data.id, order);
 	order = response.data;
 	let orderLines = order.data.attributes.order_lines;
 	
