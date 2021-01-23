@@ -1,0 +1,174 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Application for integrating Thetis IMS with Webshipper.
+Globals:
+  Function:
+    Runtime: nodejs12.x
+    MemorySize: 512
+Parameters:
+  ContextId:
+    Type: String
+    Description: Context that this application is handling events for.
+    MinLength: '1'
+  ClientId:
+    Type: AWS::SSM::Parameter::Value<String>
+  ClientSecret:
+    Type: AWS::SSM::Parameter::Value<String>
+  ApiKey:
+    Type: String
+Resources:
+  OrderWebhook:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Function to push order from Webshipper to a shipment in Thetis
+        IMS.
+      Handler: src/handlers/handler.handleWebhook
+      Timeout: 30
+      Policies:
+      - AmazonSQSFullAccess
+      Environment:
+        Variables:
+          OrderQueue:
+            Ref: OrderQueue
+          ClientId:
+            Ref: ClientId
+          ClientSecret:
+            Ref: ClientSecret
+          ApiKey:
+            Ref: ApiKey
+      Events:
+        Invocation:
+          Type: Api
+          Properties:
+            Method: POST
+            Path: /{contextId}/orders
+      CodeUri: OrderWebhook
+  OrderQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      FifoQueue: true
+      RedrivePolicy:
+        deadLetterTargetArn:
+          Fn::GetAtt:
+          - OrderDeadLetterQueue
+          - Arn
+        maxReceiveCount: 3
+      VisibilityTimeout: 60
+  OrderHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Function to push order from Webshipper to a shipment in Thetis
+        IMS.
+      Handler: src/handlers/handler.handleOrder
+      Timeout: 30
+      Environment:
+        Variables:
+          ClientId:
+            Ref: ClientId
+          ClientSecret:
+            Ref: ClientSecret
+          ApiKey:
+            Ref: ApiKey
+      Events:
+        OrderPush:
+          Type: SQS
+          Properties:
+            Queue:
+              Fn::GetAtt:
+              - OrderQueue
+              - Arn
+            BatchSize: 1
+      CodeUri: OrderHandler
+  Consignor:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Function to create shipment in Webshipper from shipment in Thetis
+        IMS.
+      Handler: src/handlers/handler.handleShippingLabelRequest
+      Timeout: 600
+      Environment:
+        Variables:
+          ClientId:
+            Ref: ClientId
+          ClientSecret:
+            Ref: ClientSecret
+          ApiKey:
+            Ref: ApiKey
+      Events:
+        ShippingLabelRequest:
+          Type: CloudWatchEvent
+          Properties:
+            Pattern:
+              source:
+              - public.thetis-ims.com
+              detail-type:
+              - shippingLabelRequest
+              detail:
+                termsOfDelivery:
+                - Webshipper
+                contextId:
+                - Ref: ContextId
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn:
+          Fn::GetAtt:
+          - ConsignorDeadLetterQueue
+          - Arn
+      CodeUri: Consignor
+  ConsignorDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties: {}
+  OrderDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      FifoQueue: true
+      VisibilityTimeout: 60
+  ConsignorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm when consignment fails.
+      AlarmActions:
+      - Ref: IncidentTopic
+      ComparisonOperator: GreaterThanThreshold
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Period: 60
+      Namespace: AWS/SQS
+      Threshold: '0'
+      Unit: Count
+      Dimensions:
+      - Name: QueueName
+        Value:
+          Fn::GetAtt:
+          - ConsignorDeadLetterQueue
+          - QueueName
+      TreatMissingData: notBreaching
+      Statistic: Maximum
+  OrderAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm when handling of order fails.
+      AlarmActions:
+      - Ref: IncidentTopic
+      ComparisonOperator: GreaterThanThreshold
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Period: 60
+      Namespace: AWS/SQS
+      Threshold: '0'
+      Unit: Count
+      Dimensions:
+      - Name: QueueName
+        Value:
+          Fn::GetAtt:
+          - OrderDeadLetterQueue
+          - QueueName
+      TreatMissingData: notBreaching
+      Statistic: Maximum
+  IncidentTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+      - Endpoint: lmp@thetis-apps.com
+        Protocol: email
+      DisplayName: Incidents to be handled by Thetis Devops.

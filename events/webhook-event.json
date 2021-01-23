@@ -1,0 +1,57 @@
+{
+    "resource": "/{contextId}/orders",
+    "path": "/550/orders",
+    "httpMethod": "POST",
+    "headers": {
+        "Accept": "application/vnd.api+json",
+        "Accept-Encoding": "gzip, deflate",
+        "CloudFront-Forwarded-Proto": "https",
+        "CloudFront-Is-Desktop-Viewer": "true",
+        "CloudFront-Is-Mobile-Viewer": "false",
+        "CloudFront-Is-SmartTV-Viewer": "false",
+        "CloudFront-Is-Tablet-Viewer": "false",
+        "CloudFront-Viewer-Country": "IE",
+        "Content-Type": "application/vnd.api+json;charset=utf-8",
+        "Host": "zr337w0znc.execute-api.eu-west-1.amazonaws.com",
+        "User-Agent": "Webshipper",
+        "Via": "1.1 463c61d5be9284ffc1eec85e247d041a.cloudfront.net (CloudFront)",
+        "X-Amz-Cf-Id": "pfp7fr1RlUrU3j5yqfZEM_flU2VMk5PBBTDcD9NG-0hl0_LgkDVTaw==",
+        "x-amzn-apigateway-api-id": "yi2tob2n7d",
+        "X-Amzn-Trace-Id": "Self=1-60093488-31cf02ae48c3cb4d68e6c97e;Root=1-60093488-5ba5ba981908a2a844e5cd29",
+        "X-Forwarded-For": "34.240.185.149, 108.128.160.49, 130.176.6.93",
+        "X-Forwarded-Port": "443",
+        "X-Forwarded-Proto": "https",
+        "X-Webshipper-Hmac-Sha256": "Ey+L9Z5CmEz6W3n8tcvAYCJdkvA/zKdOPhJ5DGunvkM=",
+        "X-Webshipper-Topic": "order/created"
+    },
+    "queryStringParameters": null,
+    "pathParameters": {
+        "contextId": "550"
+    },
+    "stageVariables": null,
+    "body": "{\"data\":{\"id\":\"1025\",\"type\":\"orders\",\"links\":{\"self\":\"/v2/orders/1025\"},\"attributes\":{\"order_channel_id\":1,\"status\":\"pending\",\"ext_ref\":\"3007882199063\",\"visible_ref\":\"3142DK\",\"drop_point\":{\"id\":691,\"order_id\":1025,\"drop_point_id\":\"99915\",\"name\":\"GLS PakkeShop Ndr. Frihavnsgade\",\"address_1\":\"Ndr. Frihavnsgade 68 st.th\",\"address_2\":null,\"zip\":\"2100\",\"city\":\"København Ø\",\"country_code\":\"DK\",\"state\":null,\"created_at\":\"2021-01-21T08:00:08.0Z\",\"updated_at\":\"2021-01-21T08:00:08.0Z\",\"phone\":null,\"email\":null,\"longitude\":null,\"latitude\":null,\"carrier_code\":null,\"routing_code\":null},\"original_shipping\":{\"id\":1025,\"order_id\":1025,\"shipping_code\":\"{\\\"shipping_rate_id\\\":1,\\\"drop_point\\\":{\\\"drop_point_id\\\":\\\"99915\\\",\\\"name\\\":\\\"GLS PakkeShop Ndr. Frihavnsgade\\\",\\\"address_1\\\":\\\"Ndr. Frihavnsgade 68 st.th\\\",\\\"zip\\\":\\\"2100\\\",\\\"city\\\":\\\"København Ø\\\",\\\"country_code\\\":\\\"DK\\\"}}\",\"shipping_name\":\"GLS Pakkeshop (1-2 dage) - GLS PakkeShop Ndr. Frihavnsgade, Ndr. Frihavnsgade 68 st.th 2100 København Ø\",\"price\":0.0,\"vat_percent\":0.0,\"created_at\":\"2021-01-21T08:00:08.0Z\",\"updated_at\":\"2021-01-21T08:00:08.0Z\"},\"order_lines\":[{\"id\":3263,\"sku\":\"100-150-030901152\",\"description\":\"Leo Leg, Leggings - Grey Leo 12Y/152\",\"quantity\":1,\"location\":null,\"tarif_number\":\"610469\",\"country_of_origin\":\"TR\",\"unit_price\":199.2,\"vat_percent\":25.0,\"order_id\":1025,\"status\":\"pending\",\"ext_ref\":\"6489828556823\",\"created_at\":\"2021-01-21T08:00:08.0Z\",\"updated_at\":\"2021-01-21T08:00:08.0Z\",\"package_id\":null,\"weight\":0.0,\"weight_unit\":\"g\",\"discount_value\":0.0,\"discount_type\":\"fixed\",\"is_virtual\":false,\"discounted_unit_price\":199.2,\"additional_attributes\":{\"variant_id\":\"31506055299095\",\"variant_barcode\":\"5711529002981\",\"vendor\":\"MarMar Copenhagen\"}},{\"id\":3264,\"sku\":\"100-150-060901152\",\"description\":\"Leo Tee, T-shirt - Grey Leo 12Y/152\",\"quantity\":1,\"location\":null,\"tarif_number\":\"610620\",\"country_of_origin\":\"DK\",\"unit_price\":199.2,\"vat_percent\":25.0,\"order_id\":1025,\"status\":null,\"ext_ref\":\"6489828589591\",\"created_at\":\"2021-01-21T08:00:08.0Z\",\"updated_at\":\"2021-01-21T08:00:08.0Z\",\"package_id\":null,\"weight\":0.0,\"weight_unit\":\"g\",\"discount_value\":0.0,\"discount_type\":\"fixed\",\"is_virtual\":false,\"discounted_unit_price\":199.2,\"additional_attributes\":{\"variant_id\":\"31506056904727\",\"variant_barcode\":\"5711529020565\",\"vendor\":\"MarMar Copenhagen\"}},{\"id\":3265,\"sku\":\"204-150-421178140\",\"description\":\"Leo Taren, Bluse - Sierra Leo 10Y/140\",\"quantity\":1,\"location\":null,\"tarif_number\":\"610620\",\"country_of_origin\":\"DK\",\"unit_price\":143.52,\"vat_percent\":25.0,\"order_id\":1025,\"status\":null,\"ext_ref\":\"6489828622359\",\"created_at\":\"2021-01-21T08:00:08.0Z\",\"updated_at\":\"2021-01-21T08:00:08.0Z\",\"package_id\":null,\"weight\":0.0,\"weight_unit\":\"g\",\"discount_value\":0.0,\"discount_type\":\"fixed\",\"is_virtual\":false,\"discounted_unit_price\":143.52,\"additional_attributes\":{\"variant_id\":\"31685534941207\",\"variant_barcode\":\"5711529428668\",\"vendor\":\"MarMar Copenhagen\"}},{\"id\":3266,\"sku\":\"203-660-030499152\",\"description\":\"Base Leg, Leggings - Darkest Blue 12Y/152\",\"quantity\":1,\"location\":null,\"tarif_number\":\"610469\",\"country_of_origin\":\"TR\",\"unit_price\":85.92,\"vat_percent\":25.0,\"order_id\":1025,\"status\":null,\"ext_ref\":\"6489828655127\",\"created_at\":\"2021-01-21T08:00:08.0Z\",\"updated_at\":\"2021-01-21T08:00:08.0Z\",\"package_id\":null,\"weight\":0.0,\"weight_unit\":\"g\",\"discount_value\":0.0,\"discount_type\":\"fixed\",\"is_virtual\":false,\"discounted_unit_price\":85.92,\"additional_attributes\":{\"variant_id\":\"31687525695511\",\"variant_barcode\":\"5711529410144\",\"vendor\":\"MarMar Copenhagen\"}}],\"delivery_address\":{\"id\":8469,\"att_contact\":\"Nanna Olesen\",\"company_name\":\"\",\"address_1\":\"Lipkesgade 26\",\"address_2\":\"2\",\"zip\":\"2100\",\"city\":\"København Ø\",\"country_code\":\"DK\",\"state\":null,\"phone\":\"27124084\",\"email\":\"nanna@moderliv.dk\",\"created_at\":\"2021-01-21T08:00:08.0Z\",\"updated_at\":\"2021-01-21T08:00:08.0Z\",\"address_type\":\"recipient\",\"vat_no\":null,\"ext_location\":null,\"company_customs_numbers\":{},\"voec\":null,\"eori\":null,\"sprn\":null,\"personal_customs_no\":null},\"sender_address\":{\"id\":8471,\"att_contact\":\"MarMar Copenhagen Aps\",\"company_name\":\"MarMar C/o Link Logistics\",\"address_1\":\"Vallensbækvej 51-53\",\"address_2\":null,\"zip\":\"2605\",\"city\":\"Brøndby\",\"country_code\":\"DK\",\"state\":null,\"phone\":\"+4531633536\",\"email\":\"cecilie@marmar.dk\",\"created_at\":\"2021-01-21T08:00:08.0Z\",\"updated_at\":\"2021-01-21T08:00:08.0Z\",\"address_type\":\"order_address\",\"vat_no\":\"41271442\",\"ext_location\":null,\"company_customs_numbers\":{\"voec\":null},\"voec\":null,\"eori\":null,\"sprn\":null,\"personal_customs_no\":null},\"billing_address\":{\"id\":8470,\"att_contact\":\"Nanna Olesen\",\"company_name\":\"\",\"address_1\":\"Lipkesgade 26\",\"address_2\":\"2\",\"zip\":\"2100\",\"city\":\"København Ø\",\"country_code\":\"DK\",\"state\":null,\"phone\":\"27124084\",\"email\":\"nanna@moderliv.dk\",\"created_at\":\"2021-01-21T08:00:08.0Z\",\"updated_at\":\"2021-01-21T08:00:08.0Z\",\"address_type\":\"order_address\",\"vat_no\":null,\"ext_location\":null,\"company_customs_numbers\":{},\"voec\":null,\"eori\":null,\"sprn\":null,\"personal_customs_no\":null},\"sold_from_address\":{\"id\":8472,\"att_contact\":\"MarMar Copenhagen Aps\",\"company_name\":\"MarMar Copenhagen Aps\",\"address_1\":\"Tirsbækvej 5\",\"address_2\":null,\"zip\":\"2720\",\"city\":\"Vanløse\",\"country_code\":\"DK\",\"state\":null,\"phone\":\"+4531633536\",\"email\":\"cecilie@marmar.dk\",\"created_at\":\"2021-01-21T08:00:08.0Z\",\"updated_at\":\"2021-01-21T08:00:08.0Z\",\"address_type\":\"order_address\",\"vat_no\":\"41271442\",\"ext_location\":null,\"company_customs_numbers\":{\"voec\":null},\"voec\":null,\"eori\":null,\"sprn\":null,\"personal_customs_no\":null},\"currency\":\"DKK\",\"internal_comment\":null,\"external_comment\":\"\",\"error_message\":null,\"updated_at\":\"2021-01-21T08:00:08.0Z\",\"created_at\":\"2021-01-21T08:00:08.0Z\",\"lock_state\":null,\"source\":\"api\",\"tags\":[],\"error_class\":null,\"slip_printed\":null,\"label_printed\":null,\"create_shipment_automatically\":false},\"relationships\":{\"order_channel\":{\"links\":{\"self\":\"/v2/orders/1025/relationships/order_channel\",\"related\":\"/v2/orders/1025/order_channel\"}},\"shipping_rate\":{\"links\":{\"self\":\"/v2/orders/1025/relationships/shipping_rate\",\"related\":\"/v2/orders/1025/shipping_rate\"}},\"error_type\":{\"links\":{\"self\":\"/v2/orders/1025/relationships/error_type\",\"related\":\"/v2/orders/1025/error_type\"}},\"printer_client\":{\"links\":{\"self\":\"/v2/orders/1025/relationships/printer_client\",\"related\":\"/v2/orders/1025/printer_client\"}},\"shipments\":{\"links\":{\"self\":\"/v2/orders/1025/relationships/shipments\",\"related\":\"/v2/orders/1025/shipments\"}},\"additional_attributes\":{\"links\":{\"self\":\"/v2/orders/1025/relationships/additional_attributes\",\"related\":\"/v2/orders/1025/additional_attributes\"}},\"print_jobs\":{\"links\":{\"self\":\"/v2/orders/1025/relationships/print_jobs\",\"related\":\"/v2/orders/1025/print_jobs\"}},\"packages\":{\"links\":{\"self\":\"/v2/orders/1025/relationships/packages\",\"related\":\"/v2/orders/1025/packages\"}},\"events\":{\"links\":{\"self\":\"/v2/orders/1025/relationships/events\",\"related\":\"/v2/orders/1025/events\"}},\"attachments\":{\"links\":{\"self\":\"/v2/orders/1025/relationships/attachments\",\"related\":\"/v2/orders/1025/attachments\"}},\"documents\":{\"links\":{\"self\":\"/v2/orders/1025/relationships/documents\",\"related\":\"/v2/orders/1025/documents\"}}},\"meta\":{\"copyright\":\"© 2021 Webshipper ApS\"}}}",
+    "requestContext": {
+        "accountId": "626544707417",
+        "resourceId": "2px7we",
+        "stage": "Prod",
+        "requestId": "36dc3a16-28a7-49f0-ac91-0ad0277beea6",
+        "identity": {
+            "cognitoIdentityPoolId": null,
+            "accountId": null,
+            "cognitoIdentityId": null,
+            "caller": null,
+            "sourceIp": "108.128.160.49",
+            "principalOrgId": null,
+            "accessKey": null,
+            "cognitoAuthenticationType": null,
+            "cognitoAuthenticationProvider": null,
+            "userArn": null,
+            "userAgent": "Webshipper",
+            "user": null
+        },
+        "resourcePath": "/{contextId}/orders",
+        "httpMethod": "POST",
+        "apiId": "zr337w0znc"
+    },
+    "isBase64Encoded": false
+}
