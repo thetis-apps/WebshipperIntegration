@@ -1,6 +1,19 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: Application for integrating Thetis IMS with Webshipper.
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: WebshipperIntegration
+    Description: Application for integration of Thetis IMS with Webshipper
+    Author: thetis-apps
+    SpdxLicenseId: Apache-2.0
+    LicenseUrl: ../../LICENSE.txt
+    ReadmeUrl: ../../README.md
+    Labels:
+    - thetis-ims
+    HomePageUrl: https://github.com/thetis-apps/WebshipperIntegration
+    SemanticVersion: '0.0.2'
+    SourceCodeUrl: https://github.com/thetis-apps/WebshipperIntegration
 Globals:
   Function:
     Runtime: nodejs12.x

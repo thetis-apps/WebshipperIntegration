@@ -1,28 +1,23 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: Application for integrating Thetis IMS with Webshipper.
-  
-# Metadata to use for the publishing to the SAR
 Metadata:
   AWS::ServerlessRepo::Application:
     Name: WebshipperIntegration
     Description: Application for integration of Thetis IMS with Webshipper
     Author: thetis-apps
     SpdxLicenseId: Apache-2.0
-    LicenseUrl: LICENSE.txt
-    ReadmeUrl: README.md
-    Labels: ['thetis-ims']
+    LicenseUrl: s3://aws-sam-cli-managed-default-samclisourcebucket-1q52gionhjeg3/3bdc425722d4b0984d4c794a2eddb85d
+    ReadmeUrl: s3://aws-sam-cli-managed-default-samclisourcebucket-1q52gionhjeg3/00836fc16295752418b74ddfd93490c9
+    Labels:
+    - thetis-ims
     HomePageUrl: https://github.com/thetis-apps/WebshipperIntegration
-    SemanticVersion: 0.0.2
+    SemanticVersion: '0.0.1'
     SourceCodeUrl: https://github.com/thetis-apps/WebshipperIntegration
-
-# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
     Runtime: nodejs12.x
     MemorySize: 512
-
-# Parameters of the application 
 Parameters:
   ContextId:
     Type: String
@@ -59,7 +54,8 @@ Resources:
           Type: Api
           Properties:
             Method: POST
-            Path: "/{contextId}/orders"
+            Path: /{contextId}/orders
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-1q52gionhjeg3/08f495d66c7a03812bfbc78a8570f4a1
   OrderQueue:
     Type: AWS::SQS::Queue
     Properties:
@@ -95,6 +91,7 @@ Resources:
               - OrderQueue
               - Arn
             BatchSize: 1
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-1q52gionhjeg3/08f495d66c7a03812bfbc78a8570f4a1
   Consignor:
     Type: AWS::Serverless::Function
     Properties:
@@ -130,6 +127,7 @@ Resources:
           Fn::GetAtt:
           - ConsignorDeadLetterQueue
           - Arn
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-1q52gionhjeg3/08f495d66c7a03812bfbc78a8570f4a1
   ConsignorDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties: {}

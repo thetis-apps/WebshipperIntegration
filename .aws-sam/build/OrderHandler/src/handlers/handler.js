@@ -1,4 +1,18 @@
-
+/**
+ * Copyright 2021 Thetis Apps Aps
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * 
+ * You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * 
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 const axios = require('axios');
 
 var AWS = require('aws-sdk');
@@ -99,18 +113,14 @@ exports.handleWebhook = async (input, x) => {
 
 	let order = JSON.parse(data);
 	let status = order.data.attributes.status;
-	if (status == "pending") {
+	if (subject == 'order/deleted' || status == "pending") {
 	    
         let params = {
             MessageAttributes: {
-                "contextId": {
-                  DataType: "String",
-                  StringValue: contextId
-                },
                 "subject": {
                   DataType: "String",
                   StringValue: subject
-                },
+                }
             },
             MessageBody: JSON.stringify(order),
             MessageDeduplicationId: input.requestContext.requestId,
@@ -341,9 +351,9 @@ exports.handleOrder = async (event, context) => {
     for (let i = 0; i < event.Records.length; i++) {
 
         let message = event.Records[i];
-        
     	let contextId = message.attributes.MessageGroupId;
-    
+    	let subject = message.messageAttributes.subject.stringValue;
+    	
         let ims = await getIMS(contextId);
     
         let setup = await getSetup(ims, contextId);
@@ -352,48 +362,57 @@ exports.handleOrder = async (event, context) => {
 
     	let order = JSON.parse(message.body);
     	
-    	// Get order to check that it still exists 
-    	
-    	let response = await ws.get("orders/" + order.data.id, { validateStatus: function (status) {
-			    return status >= 200 && status < 300 || status == 404; // default
-			}});
-		if (response.status == 404) {
-			return "DELETED";
-		}
-    	order = response.data;
-    	
-    	response = await ws.get(order.data.relationships.shipping_rate.links.related, { baseUrl: "" });
-        let shippingRate = response.data;	
-        	
 		let sellerNumber = order.data.attributes.order_channel_id;
+	
+		// Find all shipments that are related to this order
 
         let filter = new Object();    		    
 		filter.sellerNumberMatch = sellerNumber;
 		filter.sellersReferenceMatch = order.data.id;
-		response = await ims.get("shipments", { params: filter });
+		let response = await ims.get("shipments", { params: filter });
 		let shipments = response.data;
-		
-		if (shipments.length == 0) {
-		    
-		    // No shipment related to this order yet - so we create a shipment
-		    
-			await createShipment(ims, ws, order, shippingRate);
 
-		} else {
-		    
-		    // We already have one or more shipments related to this order - so update all shipments without delivery note
-		    
-		    for (let i = 0; i < shipments.length; i++) {
-		        let shipment = shipments[i];
-		        if (shipment.deliveryNoteId == null) {
-			        await updateShipment(ims, ws, shipment, order, shippingRate);
-		        } 
-		    }
-		    
+    	if (subject == 'order/deleted') {
+    		
+    		// If order deleted we cancel all shipment that have not yet been packed
+    		
+    		for (let i = 0; i < shipments.length; i++) {
+    			let shipment = shipments[i];
+    			if (shipment.deliveryNoteId == null && !shipment.cancelled) {
+    				await ims.put("shipments/" + shipment.id + "/cancelled", "true");
+    			}
+    		}
+    			
+    	} else {
+    		
+	    	let response = await ws.get("orders/" + order.data.id);
+	    	order = response.data;
+	    	
+	    	response = await ws.get(order.data.relationships.shipping_rate.links.related, { baseUrl: "" });
+	        let shippingRate = response.data;	
+
+			if (shipments.length == 0) {
+			    
+			    // No shipment related to this order yet - so we create a shipment
+			    
+				await createShipment(ims, ws, order, shippingRate);
+	
+			} else {
+			    
+			    // We already have one or more shipments related to this order - so update all shipments without delivery note
+			    
+			    for (let i = 0; i < shipments.length; i++) {
+			        let shipment = shipments[i];
+			        if (shipment.deliveryNoteId == null) {
+				        await updateShipment(ims, ws, shipment, order, shippingRate);
+			        } 
+			    }
+			    
+			}
+			
 		}
-		
-	}
-
+    }
+    
     return null;         
 };
 
@@ -591,22 +610,6 @@ async function postShipment(ws, order, shipment, instances) {
 
     attributes.reference = shipment.shipmentNumber;
     attributes.comment = shipment.notesOnDelivery;
-    
-    /* Not relevant because we assumme shipping rate 
-    attributes.service_code 
-    attributes.service_attributes 
-    attributes.add_ons
-    attributes.sms_notification 
-    attributes.email_notification 
-    */
-
-   /* Copied from order when we provide a relationship
-    attributes.sender_address = order.sender_address;
-    attributes.billing_address = order.billing_address;
-    attributes.pickup_address = order.pickup_address;
-    attributes.return_address = order.return_address;
-    */
-    
     attributes.fulfill_immediately = true;
     attributes.test_mode = false;
 
