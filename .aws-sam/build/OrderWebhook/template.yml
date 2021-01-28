@@ -5,7 +5,7 @@ Description: Application for integrating Thetis IMS with Webshipper.
 # Metadata to use for the publishing to the SAR
 Metadata:
   AWS::ServerlessRepo::Application:
-    Name: WebshipperIntegration
+    Name: thetis-ims-webshipper-integration
     Description: Application for integration of Thetis IMS with Webshipper
     Author: thetis-apps
     SpdxLicenseId: Apache-2.0
@@ -29,11 +29,19 @@ Parameters:
     Description: Context that this application is handling events for.
     MinLength: '1'
   ClientId:
+    Description: Key of the parameter that has your Thetis client id as its value.
     Type: AWS::SSM::Parameter::Value<String>
   ClientSecret:
+    Description: Key of the parameter that has your Thetis client secret as its value.
     Type: AWS::SSM::Parameter::Value<String>
   ApiKey:
+    Description: The api key that gives access to the context in Thetis IMS.
     Type: String
+    MinLength: 1
+  DevOpsEmail:
+    Description: The email address to send mail to when messages in the dead letter queue.
+    Type: String
+    MinLength: 4
 Resources:
   OrderWebhook:
     Type: AWS::Serverless::Function
@@ -184,6 +192,7 @@ Resources:
     Type: AWS::SNS::Topic
     Properties:
       Subscription:
-      - Endpoint: lmp@thetis-apps.com
+      - Endpoint: 
+          Ref: DevOpsEmail
         Protocol: email
-      DisplayName: Incidents to be handled by Thetis Devops.
+      DisplayName: Incidents to be handled by Devops.

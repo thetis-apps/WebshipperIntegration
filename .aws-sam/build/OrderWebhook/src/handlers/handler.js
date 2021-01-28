@@ -164,6 +164,15 @@ async function getWebshipper(serverName, apiKey) {
     return webshipper;
 }
 
+function getInstanceSpecification(instance) {
+	let specification = "";
+	specification = instance.batchNumber != null ? specification.concat(" Batch: " + instance.batchNumber) : specification;
+	specification = instance.serialNumber != null ? specification.concat(" Serial: " + instance.serialNumber) : specification;
+	specification = instance.expirationDate != null ? specification.concat(" Expiration: " + instance.expirationDate) : specification;
+	specification = instance.bestBeforeDate != null ? specification.concat(" Best before: " + instance.bestBeforeDate) : specification;
+	return specification;
+}
+
 function setAddress(webshipperAddress, address) {
  	address.addressee = webshipperAddress.company_name;
 	address.careOf = webshipperAddress.att_contact;
@@ -298,15 +307,18 @@ async function updateShipment(ims, ws, shipment, order, shippingRate) {
 		
 	let patch = new Object();
 	patch.currencyCode = attributes.currency;
-	/*
-	
-	Change patch method or use old convention (_)
-	
-	patch.deliveryAddress = new Object();
-	setAddress(attributes.delivery_address, patch.deliveryAddress);
-	patch.contactPerson = new Object();
-	setContactPerson(attributes.delivery_address, patch.contactPerson);
-	*/
+	patch.deliveryAddress_addressee = attributes.delivery_address.company_name;
+	patch.deliveryAddress_careOf = attributes.delivery_address.att_contact;
+	patch.deliveryAddress_streetNameAndNumber = attributes.delivery_address.address_1;
+	patch.deliveryAddress_districtOrCityArea = attributes.delivery_address.address_2;
+	patch.deliveryAddress_cityTownOrVillage = attributes.delivery_address.city;
+	patch.deliveryAddress_stateOrProvince = attributes.delivery_address.state;
+	patch.deliveryAddress_countryCode = attributes.delivery_address.country_code;
+	patch.deliveryAddress_postalCode = attributes.delivery_address.zip;
+	patch.contactPerson_email = attributes.delivery_address.email;
+	patch.contactPerson_mobileNumber = attributes.delivery_address.phone;
+	patch.contactPerson_phoneNumber = attributes.delivery_address.phone;
+	patch.contactPerson_name = attributes.delivery_address.att_contact;
 	patch.notesOnDelivery = attributes.external_comment ;
 	patch.notesOnPacking = attributes.internal_comment ;
 	patch.notesOnShipping = shippingRate.data.attributes.name;
@@ -336,8 +348,8 @@ async function errOrder(ws, order, message) {
 	let attributes = new Object();
 	orderData.attributes = attributes;
 	attributes.status = "error";
-	attributes.errorMessage = message.messageText;
-	attributes.errorClass = message.messageCode;
+	attributes.error_message = message.messageText;
+	attributes.error_class = message.messageCode;
 	
 	console.log("Patching after error");
 	
@@ -478,7 +490,13 @@ async function patchOrder(ws, order, shipment, instances) {
 				newOrderLine.sku = instance.stockKeepingUnit;
 				newOrderLine.country_of_origin = oldOrderLine.country_of_origin;
 				newOrderLine.ext_ref = oldOrderLine.ext_ref;
-				newOrderLine.description = oldOrderLine.description;
+				let description = oldOrderLine.description;
+				description = description.substring(0, description.indexOf(" ||"));
+				let instanceDescription = getInstanceSpecification(instance);
+				if (instanceDescription.length > 0) {
+					description = description + " ||" + instanceDescription;
+				}
+				newOrderLine.description = description;
 				newOrderLine.location = oldOrderLine.location;
 				newOrderLine.tarif_number = oldOrderLine.tarif_number;
 				newOrderLine.country_of_origin = oldOrderLine.country_of_origin;
