@@ -725,7 +725,7 @@ exports.handleShippingLabelRequest = async (event, x) => {
 		    await ims.put("shippingContainers/" + shippingContainer.id + "/trackingUrl", trackingLink.url);
 		}
 		
-		await ims.put("shipments/" + shipment.id + "/consignmentId", webshipperShipment.data.id);
+		await ims.put("shipments/" + shipment.id + "/consignmentId", webshipperShipment.data.id.toString());
 		
 		// Send a message to signal that we are done
 		
