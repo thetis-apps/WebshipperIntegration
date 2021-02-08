@@ -670,9 +670,9 @@ exports.handleShippingLabelRequest = async (event, x) => {
 	response = await postShipment(ws, order, shipment, instances);
 
 	if (response.status == 422) {
-		let errors = response.data.data.errors;
+		let errors = response.data.errors;
     	for (let i = 0; i < errors.length; i++) {
-    		let error =  errors[0];
+    		let error =  errors[i];
     		let message = new Object();
     		message.time = Date.now;
     		message.source = "WebshipperIntegration";
@@ -721,11 +721,11 @@ exports.handleShippingLabelRequest = async (event, x) => {
 		for (let i = 0; i < trackingLinks.length; i++) {
 		    let trackingLink = trackingLinks[i];
 		    let shippingContainer = shippingContainers[i];
-		    await ims.put("shippingContainers/" + shippingContainer.id + "/trackingNumber", trackingLink.number);
-		    await ims.put("shippingContainers/" + shippingContainer.id + "/trackingUrl", trackingLink.url);
+		    await ims.put("shippingContainers/" + shippingContainer.id + "/trackingNumber", JSON.stringify(trackingLink.number));
+		    await ims.put("shippingContainers/" + shippingContainer.id + "/trackingUrl", JSON.stringify(trackingLink.url));
 		}
 		
-		await ims.put("shipments/" + shipment.id + "/consignmentId", webshipperShipment.data.id.toString());
+		await ims.put("shipments/" + shipment.id + "/consignmentId", JSON.stringify(webshipperShipment.data.id.toString()));
 		
 		// Send a message to signal that we are done
 		
