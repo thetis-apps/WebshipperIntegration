@@ -678,7 +678,7 @@ exports.handleShippingLabelRequest = async (event, x) => {
     		message.source = "WebshipperIntegration";
     		message.messageType = "ERROR";
     		message.messageText = error.title + ": " + error.detail;
-    		await ims.post("events", detail.eventId, "messages", message);
+    		await ims.post("events/" + detail.eventId + "/messages", message);
     	}
     	
 	} else {
