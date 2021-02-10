@@ -1,28 +1,23 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: Application for integrating Thetis IMS with Webshipper.
-  
-# Metadata to use for the publishing to the SAR
 Metadata:
   AWS::ServerlessRepo::Application:
     Name: thetis-ims-webshipper-integration
     Description: Application for integration of Thetis IMS with Webshipper
     Author: thetis-apps
     SpdxLicenseId: Apache-2.0
-    LicenseUrl: LICENSE.txt
-    ReadmeUrl: README.md
-    Labels: ['thetis-ims']
+    LicenseUrl: s3://aws-sam-cli-managed-default-samclisourcebucket-1q52gionhjeg3/4612b8d5aa75b9b9936c9b7b9e6c7e82
+    ReadmeUrl: s3://aws-sam-cli-managed-default-samclisourcebucket-1q52gionhjeg3/23b34528547c48d18aac45bd8574a3cc
+    Labels:
+    - thetis-ims
     HomePageUrl: https://github.com/thetis-apps/WebshipperIntegration
-    SemanticVersion: 0.0.6
+    SemanticVersion: '0.0.6'
     SourceCodeUrl: https://github.com/thetis-apps/WebshipperIntegration
-
-# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
     Runtime: nodejs12.x
     MemorySize: 512
-
-# Parameters of the application 
 Parameters:
   ContextId:
     Type: String
@@ -39,7 +34,8 @@ Parameters:
     Type: String
     MinLength: 1
   DevOpsEmail:
-    Description: The email address to send mail to when messages in the dead letter queue.
+    Description: The email address to send mail to when messages in the dead letter
+      queue.
     Type: String
     MinLength: 4
 Resources:
@@ -67,7 +63,8 @@ Resources:
           Type: Api
           Properties:
             Method: POST
-            Path: "/{contextId}/orders"
+            Path: /{contextId}/orders
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-1q52gionhjeg3/41c20382c692c9233a1317530ba5b884
   OrderQueue:
     Type: AWS::SQS::Queue
     Properties:
@@ -103,6 +100,7 @@ Resources:
               - OrderQueue
               - Arn
             BatchSize: 1
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-1q52gionhjeg3/41c20382c692c9233a1317530ba5b884
   Consignor:
     Type: AWS::Serverless::Function
     Properties:
@@ -138,6 +136,7 @@ Resources:
           Fn::GetAtt:
           - ConsignorDeadLetterQueue
           - Arn
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-1q52gionhjeg3/41c20382c692c9233a1317530ba5b884
   ConsignorDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties: {}
@@ -192,7 +191,7 @@ Resources:
     Type: AWS::SNS::Topic
     Properties:
       Subscription:
-      - Endpoint: 
+      - Endpoint:
           Ref: DevOpsEmail
         Protocol: email
       DisplayName: Incidents to be handled by Devops.

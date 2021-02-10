@@ -674,7 +674,7 @@ exports.handleShippingLabelRequest = async (event, x) => {
     	for (let i = 0; i < errors.length; i++) {
     		let error =  errors[i];
     		let message = new Object();
-    		message.time = Date.now;
+    		message.time = Date.now();
     		message.source = "WebshipperIntegration";
     		message.messageType = "ERROR";
     		message.messageText = error.title + ": " + error.detail;
