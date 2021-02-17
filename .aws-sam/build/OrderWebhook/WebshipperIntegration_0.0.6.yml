@@ -12,7 +12,7 @@ Metadata:
     Labels:
     - thetis-ims
     HomePageUrl: https://github.com/thetis-apps/WebshipperIntegration
-    SemanticVersion: '0.0.5'
+    SemanticVersion: '0.0.6'
     SourceCodeUrl: https://github.com/thetis-apps/WebshipperIntegration
 Globals:
   Function:
@@ -64,7 +64,7 @@ Resources:
           Properties:
             Method: POST
             Path: /{contextId}/orders
-      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-1q52gionhjeg3/ebf827a3590d9e1140aab6fc2000995c
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-1q52gionhjeg3/41c20382c692c9233a1317530ba5b884
   OrderQueue:
     Type: AWS::SQS::Queue
     Properties:
@@ -100,7 +100,7 @@ Resources:
               - OrderQueue
               - Arn
             BatchSize: 1
-      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-1q52gionhjeg3/ebf827a3590d9e1140aab6fc2000995c
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-1q52gionhjeg3/41c20382c692c9233a1317530ba5b884
   Consignor:
     Type: AWS::Serverless::Function
     Properties:
@@ -136,7 +136,7 @@ Resources:
           Fn::GetAtt:
           - ConsignorDeadLetterQueue
           - Arn
-      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-1q52gionhjeg3/ebf827a3590d9e1140aab6fc2000995c
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-1q52gionhjeg3/41c20382c692c9233a1317530ba5b884
   ConsignorDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties: {}

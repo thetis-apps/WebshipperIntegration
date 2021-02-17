@@ -12,7 +12,7 @@ Metadata:
     Labels:
     - thetis-ims
     HomePageUrl: https://github.com/thetis-apps/WebshipperIntegration
-    SemanticVersion: '0.0.6'
+    SemanticVersion: '0.0.7'
     SourceCodeUrl: https://github.com/thetis-apps/WebshipperIntegration
 Globals:
   Function:
@@ -124,7 +124,7 @@ Resources:
               source:
               - public.thetis-ims.com
               detail-type:
-              - shippingLabelRequest
+              - packingCompleted
               detail:
                 termsOfDelivery:
                 - Webshipper
