@@ -26,6 +26,8 @@ same order must be created in Thetis IMS with the appropriate value set in the '
 
 # Installation
 
+You may install the latest version of the application from the Serverless Applicaation Repository. It is registered under the name thetis-ims-webshipper-integration.
+
 ## Application settings
 
 - Application name

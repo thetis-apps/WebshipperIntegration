@@ -7,12 +7,12 @@ Metadata:
     Description: Application for integration of Thetis IMS with Webshipper
     Author: thetis-apps
     SpdxLicenseId: Apache-2.0
-    LicenseUrl: ../../LICENSE.txt
-    ReadmeUrl: ../../README.md
+    LicenseUrl: s3://aws-sam-cli-managed-default-samclisourcebucket-1q52gionhjeg3/4612b8d5aa75b9b9936c9b7b9e6c7e82
+    ReadmeUrl: s3://aws-sam-cli-managed-default-samclisourcebucket-1q52gionhjeg3/23b34528547c48d18aac45bd8574a3cc
     Labels:
     - thetis-ims
     HomePageUrl: https://github.com/thetis-apps/WebshipperIntegration
-    SemanticVersion: '0.0.8'
+    SemanticVersion: '0.0.7'
     SourceCodeUrl: https://github.com/thetis-apps/WebshipperIntegration
 Globals:
   Function:
@@ -64,7 +64,7 @@ Resources:
           Properties:
             Method: POST
             Path: /{contextId}/orders
-      CodeUri: OrderWebhook
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-1q52gionhjeg3/8f06003326fb9554dc63164ed408c325
   OrderQueue:
     Type: AWS::SQS::Queue
     Properties:
@@ -100,7 +100,7 @@ Resources:
               - OrderQueue
               - Arn
             BatchSize: 1
-      CodeUri: OrderHandler
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-1q52gionhjeg3/8f06003326fb9554dc63164ed408c325
   Consignor:
     Type: AWS::Serverless::Function
     Properties:
@@ -136,7 +136,7 @@ Resources:
           Fn::GetAtt:
           - ConsignorDeadLetterQueue
           - Arn
-      CodeUri: Consignor
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-1q52gionhjeg3/8f06003326fb9554dc63164ed408c325
   ConsignorDeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties: {}
