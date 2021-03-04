@@ -595,7 +595,7 @@ async function postShipment(ws, order, shipment, instances) {
 				// Remove the found order line from the list and add it to the list of order lines in this package
 				
 				if (!found) {
-					throw new Error("Could not find matching order line");
+					throw new Error("Could not find matching order line to instance with id: " + instance.id + " (" + instance.stockKeepingUnit + " / " + instance.instanceCount + ")");
 				}
 				
 				package.order_lines.push(orderLines.splice(k, 1)[0]);

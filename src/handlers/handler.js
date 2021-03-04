@@ -472,47 +472,52 @@ async function patchOrder(ws, order, shipment, instances) {
 	instanceMap.forEach(function(instances, sku) {
 		for (let i = 0; i < instances.length; i++) {
 			let instance = instances[i];
-			let orderLines = orderLineMap.get(sku);
 			let remaining = instance.instanceCount;
-			let j = 0;
-			while (remaining > 0 && j < orderLines.length) {
-				let oldOrderLine = orderLines[j];	
-				if (oldOrderLine.quantity > 0) {
-					let newOrderLine = new Object();
-					if (instance.instanceCount < oldOrderLine.quantity) {
-						newOrderLine.quantity = instance.instanceCount;
-						oldOrderLine.quantity = oldOrderLine.quantity - instance.instanceCount;
-						remaining = 0;
-					} else {
-						newOrderLine.quantity = oldOrderLine.quantity;
-						oldOrderLine.quantity = 0;
-						remaining = instance.instanceCount - oldOrderLine.quantity;
-					}	
-					newOrderLine.sku = instance.stockKeepingUnit;
-					newOrderLine.country_of_origin = oldOrderLine.country_of_origin;
-					newOrderLine.ext_ref = oldOrderLine.ext_ref;
-					let description = oldOrderLine.description;
-					description = description.substring(0, description.indexOf(" ||"));
-					let instanceDescription = getInstanceSpecification(instance);
-					if (instanceDescription.length > 0) {
-						description = description + " ||" + instanceDescription;
+			if (orderLineMap.has(instance.stockKeepingUnit)) {
+				let orderLines = orderLineMap.get(sku);
+				let j = 0;
+				while (remaining > 0 && j < orderLines.length) {
+					let oldOrderLine = orderLines[j];	
+					if (oldOrderLine.quantity > 0) {
+						let newOrderLine = new Object();
+						if (instance.instanceCount < oldOrderLine.quantity) {
+							newOrderLine.quantity = instance.instanceCount;
+							oldOrderLine.quantity = oldOrderLine.quantity - instance.instanceCount;
+							remaining = 0;
+						} else {
+							newOrderLine.quantity = oldOrderLine.quantity;
+							oldOrderLine.quantity = 0;
+							remaining = instance.instanceCount - oldOrderLine.quantity;
+						}	
+						newOrderLine.sku = instance.stockKeepingUnit;
+						newOrderLine.country_of_origin = oldOrderLine.country_of_origin;
+						newOrderLine.ext_ref = oldOrderLine.ext_ref;
+						let description = oldOrderLine.description;
+						description = description.substring(0, description.indexOf(" ||"));
+						let instanceDescription = getInstanceSpecification(instance);
+						if (instanceDescription.length > 0) {
+							description = description + " ||" + instanceDescription;
+						}
+						newOrderLine.description = description;
+						newOrderLine.location = oldOrderLine.location;
+						newOrderLine.tarif_number = oldOrderLine.tarif_number;
+						newOrderLine.country_of_origin = oldOrderLine.country_of_origin;
+						newOrderLine.unit_price = oldOrderLine.unit_price;
+						newOrderLine.discounted_unit_price = oldOrderLine.discounted_unit_price;
+						newOrderLine.discount_value = oldOrderLine.discount_value;
+						newOrderLine.discount_type = oldOrderLine.discount_type;
+						newOrderLine.vat_percent = oldOrderLine.vat_percent;
+						newOrderLine.weight = oldOrderLine.weight;
+						newOrderLine.weight_unit = oldOrderLine.weight_unit;
+						newOrderLine.order_id = oldOrderLine.order_id;
+						newOrderLine.is_virtual = oldOrderLine.is_virtual;
+						newOrderLines.push(newOrderLine);					
 					}
-					newOrderLine.description = description;
-					newOrderLine.location = oldOrderLine.location;
-					newOrderLine.tarif_number = oldOrderLine.tarif_number;
-					newOrderLine.country_of_origin = oldOrderLine.country_of_origin;
-					newOrderLine.unit_price = oldOrderLine.unit_price;
-					newOrderLine.discounted_unit_price = oldOrderLine.discounted_unit_price;
-					newOrderLine.discount_value = oldOrderLine.discount_value;
-					newOrderLine.discount_type = oldOrderLine.discount_type;
-					newOrderLine.vat_percent = oldOrderLine.vat_percent;
-					newOrderLine.weight = oldOrderLine.weight;
-					newOrderLine.weight_unit = oldOrderLine.weight_unit;
-					newOrderLine.order_id = oldOrderLine.order_id;
-					newOrderLine.is_virtual = oldOrderLine.is_virtual;
-					newOrderLines.push(newOrderLine);					
+					j++;
 				}
-				j++;
+			}
+			if (remaining > 0) {
+				throw new Error("Could not fully reconcile instance with id: " + instance.id + " (" + instance.stockKeepingUnit + " / " + instance.instanceCount + ")");
 			}
 		}		
 	});	
@@ -595,7 +600,7 @@ async function postShipment(ws, order, shipment, instances) {
 				// Remove the found order line from the list and add it to the list of order lines in this package
 				
 				if (!found) {
-					throw new Error("Could not find matching order line");
+					throw new Error("Could not find matching order line to instance with id: " + instance.id + " (" + instance.stockKeepingUnit + " / " + instance.instanceCount + ")");
 				}
 				
 				package.order_lines.push(orderLines.splice(k, 1)[0]);
