@@ -473,21 +473,21 @@ async function patchOrder(ws, order, shipment, instances) {
 		for (let i = 0; i < instances.length; i++) {
 			let instance = instances[i];
 			let remaining = instance.instanceCount;
-			if (orderLineMap.has(instance.stockKeepingUnit)) {
+			if (orderLineMap.has(sku)) {
 				let orderLines = orderLineMap.get(sku);
 				let j = 0;
 				while (remaining > 0 && j < orderLines.length) {
 					let oldOrderLine = orderLines[j];	
 					if (oldOrderLine.quantity > 0) {
 						let newOrderLine = new Object();
-						if (instance.instanceCount < oldOrderLine.quantity) {
-							newOrderLine.quantity = instance.instanceCount;
-							oldOrderLine.quantity = oldOrderLine.quantity - instance.instanceCount;
+						if (remaining < oldOrderLine.quantity) {
+							newOrderLine.quantity = remaining;
+							oldOrderLine.quantity = oldOrderLine.quantity - remaining;
 							remaining = 0;
 						} else {
 							newOrderLine.quantity = oldOrderLine.quantity;
+							remaining = remaining - oldOrderLine.quantity;
 							oldOrderLine.quantity = 0;
-							remaining = instance.instanceCount - oldOrderLine.quantity;
 						}	
 						newOrderLine.sku = instance.stockKeepingUnit;
 						newOrderLine.country_of_origin = oldOrderLine.country_of_origin;
@@ -499,7 +499,7 @@ async function patchOrder(ws, order, shipment, instances) {
 							description = description + " ||" + instanceDescription;
 						}
 						newOrderLine.description = description;
-						newOrderLine.location = oldOrderLine.location;
+						newOrderLine.location = instance.shippingContainerId.toString();
 						newOrderLine.tarif_number = oldOrderLine.tarif_number;
 						newOrderLine.country_of_origin = oldOrderLine.country_of_origin;
 						newOrderLine.unit_price = oldOrderLine.unit_price;
@@ -578,36 +578,15 @@ async function postShipment(ws, order, shipment, instances) {
 	    package.dimensions = shippingContainer.dimensions;
 
 	    // Order lines
-
+	
 		package.order_lines = [];
-		for (let j = 0; j < instances.length; j++) {
-			let instance = instances[j];
-			if (instance.shippingContainerId == shippingContainer.id) {
-			
-				// Find a matching order line
-				
-				let k = 0;
-				let found = false;
-				while (k < orderLines.length && !found) {
-					let orderLine = orderLines[k];
-					if (orderLine.sku == instance.stockKeepingUnit && orderLine.quantity == instance.instanceCount && orderLine.package_id == null) {
-						found = true;
-					} else {
-						k++;
-					}	
-				}
-				
-				// Remove the found order line from the list and add it to the list of order lines in this package
-				
-				if (!found) {
-					throw new Error("Could not find matching order line to instance with id: " + instance.id + " (" + instance.stockKeepingUnit + " / " + instance.instanceCount + ")");
-				}
-				
-				package.order_lines.push(orderLines.splice(k, 1)[0]);
-				
+		for (let j = 0; j < orderLines.length; j++) {
+			let orderLine = orderLines[j];
+			if (orderLine.location == shippingContainer.id.toString()) {
+				package.order_lines.push(orderLine);
 			}
 		}
-	
+
 	    packages.push(package);
     }
     
