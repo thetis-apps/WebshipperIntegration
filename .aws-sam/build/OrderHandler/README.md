@@ -59,13 +59,15 @@ In the data document of the context:
 
 ## Order created or updated
 
-If the status of the order is not 'pending' the event is ignored.  
+If the status of the order is not 'pending' or 'cancelled' the event is ignored.  
 
 If one or more Thetis IMS shipments exist with relation to the order (as determined by the value of the 'Sellers Reference' field of the shipment), the delivery information of the order is updated. If no shipment exists, a shipment is created. 
 
 If for some reason it is not possible to create or update a shipment, the application changes the status of the order to 'error'.  
 
 By delivery information we mean delivery address and pick up point.
+
+If the order is locked, the corresponding shipment is put on-hold. If the order has status 'cancelled', the corresponding shipment is cancelled.
 
 ## Order deleted 
 
