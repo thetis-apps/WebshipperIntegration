@@ -113,7 +113,7 @@ exports.handleWebhook = async (input, x) => {
 
 	let order = JSON.parse(data);
 	let status = order.data.attributes.status;
-	if (subject == 'order/deleted' || status == "pending") {
+	if (subject == 'order/deleted' || status == 'pending' || status == 'cancelled') {
 	    
         let params = {
             MessageAttributes: {
@@ -324,7 +324,8 @@ async function updateShipment(ims, ws, shipment, order, shippingRate) {
 	patch.notesOnShipping = shippingRate.data.attributes.name;
 	patch.deliverToPickUpPoint = deliverToPickUpPoint;
 	patch.pickUpPointId =pickUpPointId;
-	patch.onHold = attributes.lock_state != null && attributes.lock_state == "locked";
+	patch.onHold = attributes.lock_state != null && attributes.lock_state == 'locked';
+	patch.cancelled = attributes.status == 'cancelled';
 	
 	console.log("ShipmentId: " + shipment.id + " Patch: " + JSON.stringify(patch));
 	
