@@ -494,7 +494,6 @@ async function patchOrder(ws, order, shipment, instances) {
 						newOrderLine.country_of_origin = oldOrderLine.country_of_origin;
 						newOrderLine.ext_ref = oldOrderLine.ext_ref;
 						let description = oldOrderLine.description;
-						description = description.substring(0, description.indexOf(" ||"));
 						let instanceDescription = getInstanceSpecification(instance);
 						if (instanceDescription.length > 0) {
 							description = description + " ||" + instanceDescription;
