@@ -1,0 +1,197 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Application for integrating Thetis IMS with Webshipper.
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: thetis-ims-webshipper-integration
+    Description: Application for integration of Thetis IMS with Webshipper
+    Author: thetis-apps
+    SpdxLicenseId: Apache-2.0
+    LicenseUrl: s3://aws-sam-cli-managed-default-samclisourcebucket-1q52gionhjeg3/4612b8d5aa75b9b9936c9b7b9e6c7e82
+    ReadmeUrl: s3://aws-sam-cli-managed-default-samclisourcebucket-1q52gionhjeg3/09a47dda8a24b3283b4e2960f7e4e5fb
+    Labels:
+    - thetis-ims
+    HomePageUrl: https://github.com/thetis-apps/WebshipperIntegration
+    SemanticVersion: 1.2.0
+    SourceCodeUrl: https://github.com/thetis-apps/WebshipperIntegration
+Globals:
+  Function:
+    Runtime: nodejs12.x
+    MemorySize: 512
+Parameters:
+  ContextId:
+    Type: String
+    Description: Context that this application is handling events for.
+    MinLength: '1'
+  ClientId:
+    Description: Key of the parameter that has your Thetis client id as its value.
+    Type: AWS::SSM::Parameter::Value<String>
+  ClientSecret:
+    Description: Key of the parameter that has your Thetis client secret as its value.
+    Type: AWS::SSM::Parameter::Value<String>
+  ApiKey:
+    Description: The api key that gives access to the context in Thetis IMS.
+    Type: String
+    MinLength: 1
+  DevOpsEmail:
+    Description: The email address to send mail to when messages in the dead letter
+      queue.
+    Type: String
+    MinLength: 4
+Resources:
+  OrderWebhook:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Function to push order from Webshipper to a shipment in Thetis
+        IMS.
+      Handler: src/handlers/handler.handleWebhook
+      Timeout: 30
+      Policies:
+      - AmazonSQSFullAccess
+      Environment:
+        Variables:
+          OrderQueue:
+            Ref: OrderQueue
+          ClientId:
+            Ref: ClientId
+          ClientSecret:
+            Ref: ClientSecret
+          ApiKey:
+            Ref: ApiKey
+      Events:
+        Invocation:
+          Type: Api
+          Properties:
+            Method: POST
+            Path: /{contextId}/orders
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-1q52gionhjeg3/addce1f0a17711e297c2d514d6e870d9
+  OrderQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      FifoQueue: true
+      RedrivePolicy:
+        deadLetterTargetArn:
+          Fn::GetAtt:
+          - OrderDeadLetterQueue
+          - Arn
+        maxReceiveCount: 3
+      VisibilityTimeout: 60
+  OrderHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Function to push order from Webshipper to a shipment in Thetis
+        IMS.
+      Handler: src/handlers/handler.handleOrder
+      Timeout: 30
+      Environment:
+        Variables:
+          ClientId:
+            Ref: ClientId
+          ClientSecret:
+            Ref: ClientSecret
+          ApiKey:
+            Ref: ApiKey
+      Events:
+        OrderPush:
+          Type: SQS
+          Properties:
+            Queue:
+              Fn::GetAtt:
+              - OrderQueue
+              - Arn
+            BatchSize: 1
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-1q52gionhjeg3/addce1f0a17711e297c2d514d6e870d9
+  Consignor:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Function to create shipment in Webshipper from shipment in Thetis
+        IMS.
+      Handler: src/handlers/handler.handleShippingLabelRequest
+      Timeout: 600
+      Environment:
+        Variables:
+          ClientId:
+            Ref: ClientId
+          ClientSecret:
+            Ref: ClientSecret
+          ApiKey:
+            Ref: ApiKey
+      Events:
+        ShippingLabelRequest:
+          Type: CloudWatchEvent
+          Properties:
+            Pattern:
+              source:
+              - public.thetis-ims.com
+              detail-type:
+              - packingCompleted
+              detail:
+                termsOfDelivery:
+                - Webshipper
+                contextId:
+                - Ref: ContextId
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn:
+          Fn::GetAtt:
+          - ConsignorDeadLetterQueue
+          - Arn
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-1q52gionhjeg3/addce1f0a17711e297c2d514d6e870d9
+  ConsignorDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties: {}
+  OrderDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      FifoQueue: true
+      VisibilityTimeout: 60
+  ConsignorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm when consignment fails.
+      AlarmActions:
+      - Ref: IncidentTopic
+      ComparisonOperator: GreaterThanThreshold
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Period: 60
+      Namespace: AWS/SQS
+      Threshold: '0'
+      Unit: Count
+      Dimensions:
+      - Name: QueueName
+        Value:
+          Fn::GetAtt:
+          - ConsignorDeadLetterQueue
+          - QueueName
+      TreatMissingData: notBreaching
+      Statistic: Maximum
+  OrderAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm when handling of order fails.
+      AlarmActions:
+      - Ref: IncidentTopic
+      ComparisonOperator: GreaterThanThreshold
+      EvaluationPeriods: 1
+      MetricName: ApproximateNumberOfMessagesVisible
+      Period: 60
+      Namespace: AWS/SQS
+      Threshold: '0'
+      Unit: Count
+      Dimensions:
+      - Name: QueueName
+        Value:
+          Fn::GetAtt:
+          - OrderDeadLetterQueue
+          - QueueName
+      TreatMissingData: notBreaching
+      Statistic: Maximum
+  IncidentTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+      - Endpoint:
+          Ref: DevOpsEmail
+        Protocol: email
+      DisplayName: Incidents to be handled by Devops.

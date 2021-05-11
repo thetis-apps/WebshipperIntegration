@@ -220,12 +220,13 @@ async function createShipment(ims, ws, order, shippingRate) {
 	
 	// Create customer if not extant
 	
-	let customer = new Object();
+	let customer;
 	let filter = new Object();
 	filter.customerNumberMatch = customerNumber;
 	let response = await ims.get("customers", { params: filter });
 	let customers = response.data;
 	if (customers.length == 0) {
+		customer = new Object();
 		customer.customerNumber = customerNumber;  
 		customer.vatNumber = billingAddress.vat_no;
 		customer.requiresTrackAndTrace = true;
@@ -233,61 +234,74 @@ async function createShipment(ims, ws, order, shippingRate) {
 		setAddress(billingAddress, customer.address);
 		customer.contactPerson = new Object();
 		setContactPerson(billingAddress, customer.contactPerson);
-		response = await ims.post("customers", customer);
-		customer = response.data;
+		response = await ims.post("customers", customer, { validateStatus: function (status) {
+			    return status >= 200 && status < 300 || status == 422; 
+			}});
+			
+		if (response.status == 422) {
+			await errOrder(ws, order, response.data);
+			customer = null;
+		} else {
+			customer = response.data;
+		}
 	} else {
 		customer = customers[0];
 	}
 	
-	let shipment = new Object();
-	shipment.customerId = customer.id;
-	shipment.shipmentNumber =  attributes.visible_ref;
-	shipment.sellersReference = order.data.id;
-	shipment.termsOfDelivery = "Webshipper";
-	shipment.deliveryDate = Date.now();
-	shipment.shippingDeadline = Date.now();
-	shipment.sellerNumber = attributes.order_channel_id;
-	shipment.currencyCode = attributes.currency;
-	shipment.deliveryAddress = new Object();
-	setAddress(attributes.delivery_address, shipment.deliveryAddress);
-	shipment.contactPerson = new Object();
-	setContactPerson(attributes.delivery_address, shipment.contactPerson);
+	// Create shipment if we succeeded in finding or creating customer
 	
-	let dropPoint = attributes.drop_point;
-	if (dropPoint != null) {
-		shipment.deliverToPickUpPoint = true;
-		shipment.pickUpPointId = dropPoint.drop_point_Id;
-	}
+	if (customer != null) {
+		
+		let shipment = new Object();
+		shipment.customerId = customer.id;
+		shipment.shipmentNumber =  attributes.visible_ref;
+		shipment.sellersReference = order.data.id;
+		shipment.termsOfDelivery = "Webshipper";
+		shipment.deliveryDate = Date.now();
+		shipment.shippingDeadline = Date.now();
+		shipment.sellerNumber = attributes.order_channel_id;
+		shipment.currencyCode = attributes.currency;
+		shipment.deliveryAddress = new Object();
+		setAddress(attributes.delivery_address, shipment.deliveryAddress);
+		shipment.contactPerson = new Object();
+		setContactPerson(attributes.delivery_address, shipment.contactPerson);
+		
+		let dropPoint = attributes.drop_point;
+		if (dropPoint != null) {
+			shipment.deliverToPickUpPoint = true;
+			shipment.pickUpPointId = dropPoint.drop_point_Id;
+		}
+		
+		shipment.setNotesOnDelivery = attributes.external_comment;
+		shipment.setNotesOnPacking = attributes.internal_comment;
+		shipment.setNotesOnShipping = shippingRate.data.attributes.name;
+		
+		shipment.shipmentLines = [];
+		let orderLines = attributes.order_lines;
+		
+		for (let i = 0; i < orderLines.length; i++) {
+		    let orderLine = orderLines[i];
+			let shipmentLine = new Object();
+			shipmentLine.numItemsOrdered = orderLine.quantity;
+			shipmentLine.salesPrice = orderLine.unit_price;
+			shipmentLine.notesOnPicking = orderLine.description;
+			shipmentLine.sellersReference = orderLine.id;
+			shipmentLine.stockKeepingUnit = orderLine.sku;
+			shipmentLine.sellersReference = orderLine.id;
+			shipment.shipmentLines.push(shipmentLine);
+		}
 	
-	shipment.setNotesOnDelivery = attributes.external_comment;
-	shipment.setNotesOnPacking = attributes.internal_comment;
-	shipment.setNotesOnShipping = shippingRate.data.attributes.name;
+		shipment.onHold = attributes.lock_state != null && attributes.lock_state == "locked";
+		
+		response = await ims.post("shipments", shipment, { validateStatus: function (status) {
+			    return status >= 200 && status < 300 || status == 422; // default
+			}});
 	
-	shipment.shipmentLines = [];
-	let orderLines = attributes.order_lines;
-	
-	for (let i = 0; i < orderLines.length; i++) {
-	    let orderLine = orderLines[i];
-		let shipmentLine = new Object();
-		shipmentLine.numItemsOrdered = orderLine.quantity;
-		shipmentLine.salesPrice = orderLine.unit_price;
-		shipmentLine.notesOnPicking = orderLine.description;
-		shipmentLine.sellersReference = orderLine.id;
-		shipmentLine.stockKeepingUnit = orderLine.sku;
-		shipmentLine.sellersReference = orderLine.id;
-		shipment.shipmentLines.push(shipmentLine);
-	}
-
-	shipment.onHold = attributes.lock_state != null && attributes.lock_state == "locked";
-	
-	response = await ims.post("shipments", shipment, { validateStatus: function (status) {
-		    return status >= 200 && status < 300 || status == 422; // default
-		}});
-
-	if (response.status == 422) {
-		await errOrder(ws, order, response.data);
-	}
-	
+		if (response.status == 422) {
+			await errOrder(ws, order, response.data);
+		}
+		
+	}	
 }
 
 async function updateShipment(ims, ws, shipment, order, shippingRate) {
@@ -448,7 +462,7 @@ async function patchOrder(ws, order, shipment, instances) {
 			instancesWithThisSku = instanceMap.get(instance.stockKeepingUnit);
 		}
 		instancesWithThisSku.push(instance);
-		instanceMap.set(instance.stockKeepingUnit, instancesWithThisSku)
+		instanceMap.set(instance.stockKeepingUnit, instancesWithThisSku);
 	}
 	
 	// Make a map of SKU on order lines
@@ -522,7 +536,7 @@ async function patchOrder(ws, order, shipment, instances) {
 					}
 				}
 				if (remaining > 0) {
-					throw new Error("Could not fully reconcile instance with id: " + instance.id + " (" + instance.stockKeepingUnit + " / " + instance.instanceCount + ")");
+					throw new Error("Could not fully reconcile instance with id: " + instance.id + " (SKU " + instance.stockKeepingUnit + " / Qty " + instance.instanceCount + ")");
 				}
 			}
 		}		
@@ -656,78 +670,92 @@ exports.handleShippingLabelRequest = async (event, x) => {
 	response = await ws.get("orders/" + shipment.sellersReference);
 	let order = response.data;
 
-	response = await patchOrder(ws, order, shipment, instances);
-	order = response.data;
-
-	response = await postShipment(ws, order, shipment, instances);
-
-	if (response.status == 422) {
-		let errors = response.data.errors;
-    	for (let i = 0; i < errors.length; i++) {
-    		let error =  errors[i];
-    		let message = new Object();
-    		message.time = Date.now();
-    		message.source = "WebshipperIntegration";
-    		message.messageType = "ERROR";
-    		message.messageText = error.title + ": " + error.detail;
-    		await ims.post("events/" + detail.eventId + "/messages", message);
-    	}
-    	
-	} else {
-		
-		let webshipperShipment = response.data;
-		
-		// Attach shipping labels to IMS shipment
-		
-		response = await ws.get(webshipperShipment.data.relationships.labels.links.related, { baseUrl: "" });
-		let labels = response.data.data;
-		for (let i = 0; i < labels.length; i++) {
-			let label = labels[i];
-			let shippingLabel = new Object();
-			shippingLabel.base64EncodedContent = label.attributes.base64;
-			shippingLabel.fileName = "SHIPPING_LABEL_" + shipment.id + "_" + (i + 1) + ".pdf";
-			await ims.post("shipments/" + shipment.id + "/attachments", shippingLabel);
-		}
-		
-		// Attach labels for all return shipments to IMS shipment
-		
-		response = await ws.get(webshipperShipment.data.relationships.return_shipments.links.related, { baseUrl: "" });
-		let returnShipments = response.data.data;
-		for (let i = 0; i < returnShipments.length; i++) {
-		    let returnShipment = returnShipments[i];
-	    	response = await ws.get(returnShipment.relationships.labels.links.related, { baseUrl: "" });
-			labels = response.data.data;
-	    	for (let j = 0; i < labels.length; j++) {
-		    	let label = labels[j];
-				let shippingLabel = new Object();
-				shippingLabel.base64EncodedContent = label.attributes.getBase64;
-				shippingLabel.fileName = "RETURN_LABEL_" + shipment.id + "_" + (i + 1) + "_" + (j + 1) + ".pdf";
-				await ims.post("shipments/" + shipment.id + "/attachments", shippingLabel);
-			}
-		}
-	
-	    // Update IMS shipment with tracking number etc.
-	    
-		let shippingContainers = shipment.shippingContainers;
-		let trackingLinks = webshipperShipment.data.attributes.tracking_links;
-		for (let i = 0; i < trackingLinks.length; i++) {
-		    let trackingLink = trackingLinks[i];
-		    let shippingContainer = shippingContainers[i];
-		    await ims.put("shippingContainers/" + shippingContainer.id + "/trackingNumber", JSON.stringify(trackingLink.number));
-		    await ims.put("shippingContainers/" + shippingContainer.id + "/trackingUrl", JSON.stringify(trackingLink.url));
-		}
-		
-		await ims.put("shipments/" + shipment.id + "/consignmentId", JSON.stringify(webshipperShipment.data.id.toString()));
-		
-		// Send a message to signal that we are done
-		
+	let match = true;
+	try {
+		response = await patchOrder(ws, order, shipment, instances);
+		order = response.data;
+	} catch (error) {
 		let message = new Object();
 		message.time = Date.now();
 		message.source = "WebshipperIntegration";
-		message.messageType = "INFO";
-		message.messageText = "Labels are ready";
+		message.messageType = "ERROR";
+		message.messageText = error.message;
 		await ims.post("events/" + detail.eventId + "/messages", message);
+		match = false;
+	}
+
+	if (match) {
 		
+		response = await postShipment(ws, order, shipment, instances);
+	
+		if (response.status == 422) {
+			let errors = response.data.errors;
+	    	for (let i = 0; i < errors.length; i++) {
+	    		let error =  errors[i];
+	    		let message = new Object();
+	    		message.time = Date.now();
+	    		message.source = "WebshipperIntegration";
+	    		message.messageType = "ERROR";
+	    		message.messageText = error.title + ": " + error.detail;
+	    		await ims.post("events/" + detail.eventId + "/messages", message);
+	    	}
+	    	
+		} else {
+			
+			let webshipperShipment = response.data;
+			
+			// Attach shipping labels to IMS shipment
+			
+			response = await ws.get(webshipperShipment.data.relationships.labels.links.related, { baseUrl: "" });
+			let labels = response.data.data;
+			for (let i = 0; i < labels.length; i++) {
+				let label = labels[i];
+				let shippingLabel = new Object();
+				shippingLabel.base64EncodedContent = label.attributes.base64;
+				shippingLabel.fileName = "SHIPPING_LABEL_" + shipment.id + "_" + (i + 1) + ".pdf";
+				await ims.post("shipments/" + shipment.id + "/attachments", shippingLabel);
+			}
+			
+			// Attach labels for all return shipments to IMS shipment
+			
+			response = await ws.get(webshipperShipment.data.relationships.return_shipments.links.related, { baseUrl: "" });
+			let returnShipments = response.data.data;
+			for (let i = 0; i < returnShipments.length; i++) {
+			    let returnShipment = returnShipments[i];
+		    	response = await ws.get(returnShipment.relationships.labels.links.related, { baseUrl: "" });
+				labels = response.data.data;
+		    	for (let j = 0; i < labels.length; j++) {
+			    	let label = labels[j];
+					let shippingLabel = new Object();
+					shippingLabel.base64EncodedContent = label.attributes.getBase64;
+					shippingLabel.fileName = "RETURN_LABEL_" + shipment.id + "_" + (i + 1) + "_" + (j + 1) + ".pdf";
+					await ims.post("shipments/" + shipment.id + "/attachments", shippingLabel);
+				}
+			}
+		
+		    // Update IMS shipment with tracking number etc.
+		    
+			let shippingContainers = shipment.shippingContainers;
+			let trackingLinks = webshipperShipment.data.attributes.tracking_links;
+			for (let i = 0; i < trackingLinks.length; i++) {
+			    let trackingLink = trackingLinks[i];
+			    let shippingContainer = shippingContainers[i];
+			    await ims.put("shippingContainers/" + shippingContainer.id + "/trackingNumber", JSON.stringify(trackingLink.number));
+			    await ims.put("shippingContainers/" + shippingContainer.id + "/trackingUrl", JSON.stringify(trackingLink.url));
+			}
+			
+			await ims.put("shipments/" + shipment.id + "/consignmentId", JSON.stringify(webshipperShipment.data.id.toString()));
+			
+			// Send a message to signal that we are done
+			
+			let message = new Object();
+			message.time = Date.now();
+			message.source = "WebshipperIntegration";
+			message.messageType = "INFO";
+			message.messageText = "Labels are ready";
+			await ims.post("events/" + detail.eventId + "/messages", message);
+			
+		}
 	}
 };
 
