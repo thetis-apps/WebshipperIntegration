@@ -470,7 +470,7 @@ async function patchOrder(ws, order, shipment, instances) {
 	var orderLineMap = new Map();
 	for (let i = 0; i < order.data.attributes.order_lines.length; i++) {
 		let orderLine = order.data.attributes.order_lines[i];
-		if (orderLine.package_id == null) {
+		if (orderLine.status == 'pending') {
 			let orderLinesWithThisSku = [];
 			if (orderLineMap.has(orderLine.sku)) {
 				orderLinesWithThisSku = orderLineMap.get(orderLine.sku);			
