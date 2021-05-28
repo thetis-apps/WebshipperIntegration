@@ -83,7 +83,10 @@ exports.handleWebhook = async (input, x) => {
     
     let setup = await getSetup(ims, contextId);
     if (setup == null) {
-    	return "No configuration for context " + contextId;
+    	let output = new Object();
+	    output.statusCode = 500;
+	    output.body = "No configuration for context " + contextId;
+		return output;
     }
 	
 	// Validate received data according to web hook secret
@@ -216,91 +219,99 @@ async function createShipment(ims, ws, order, shippingRate) {
 	// Customer number is billing address email
 	
 	let billingAddress = attributes.billing_address;
-	let customerNumber = billingAddress.email != null ? billingAddress.email : "No email";
-	
-	// Create customer if not extant
-	
-	let customer;
-	let filter = new Object();
-	filter.customerNumberMatch = customerNumber;
-	let response = await ims.get("customers", { params: filter });
-	let customers = response.data;
-	if (customers.length == 0) {
-		customer = new Object();
-		customer.customerNumber = customerNumber;  
-		customer.vatNumber = billingAddress.vat_no;
-		customer.requiresTrackAndTrace = true;
-		customer.address = new Object();
-		setAddress(billingAddress, customer.address);
-		customer.contactPerson = new Object();
-		setContactPerson(billingAddress, customer.contactPerson);
-		response = await ims.post("customers", customer, { validateStatus: function (status) {
-			    return status >= 200 && status < 300 || status == 422; 
-			}});
-			
-		if (response.status == 422) {
-			await errOrder(ws, order, response.data);
-			customer = null;
-		} else {
-			customer = response.data;
-		}
+	let customerNumber = billingAddress.email;
+	if (customerNumber == null || customerNumber == '') {
+		
+		// Err order if no billing address provided
+		
+		let message = { messageCode: "no_billing_address_email", messageText: "No email provided on billing address." };
+		await errOrder(ws, order, message);
+		
 	} else {
-		customer = customers[0];
-	}
 	
-	// Create shipment if we succeeded in finding or creating customer
-	
-	if (customer != null) {
+		// Create customer if not extant
 		
-		let shipment = new Object();
-		shipment.customerId = customer.id;
-		shipment.shipmentNumber =  attributes.visible_ref;
-		shipment.sellersReference = order.data.id;
-		shipment.termsOfDelivery = "Webshipper";
-		shipment.deliveryDate = Date.now();
-		shipment.shippingDeadline = Date.now();
-		shipment.sellerNumber = attributes.order_channel_id;
-		shipment.currencyCode = attributes.currency;
-		shipment.deliveryAddress = new Object();
-		setAddress(attributes.delivery_address, shipment.deliveryAddress);
-		shipment.contactPerson = new Object();
-		setContactPerson(attributes.delivery_address, shipment.contactPerson);
-		
-		let dropPoint = attributes.drop_point;
-		if (dropPoint != null) {
-			shipment.deliverToPickUpPoint = true;
-			shipment.pickUpPointId = dropPoint.drop_point_Id;
+		let customer;
+		let filter = new Object();
+		filter.customerNumberMatch = customerNumber;
+		let response = await ims.get("customers", { params: filter });
+		let customers = response.data;
+		if (customers.length == 0) {
+			customer = new Object();
+			customer.customerNumber = customerNumber;  
+			customer.vatNumber = billingAddress.vat_no;
+			customer.requiresTrackAndTrace = true;
+			customer.address = new Object();
+			setAddress(billingAddress, customer.address);
+			customer.contactPerson = new Object();
+			setContactPerson(billingAddress, customer.contactPerson);
+			response = await ims.post("customers", customer, { validateStatus: function (status) {
+				    return status >= 200 && status < 300 || status == 422; 
+				}});
+				
+			if (response.status == 422) {
+				await errOrder(ws, order, response.data);
+				customer = null;
+			} else {
+				customer = response.data;
+			}
+		} else {
+			customer = customers[0];
 		}
 		
-		shipment.setNotesOnDelivery = attributes.external_comment;
-		shipment.setNotesOnPacking = attributes.internal_comment;
-		shipment.setNotesOnShipping = shippingRate.data.attributes.name;
+		// Create shipment if we succeeded in finding or creating customer
 		
-		shipment.shipmentLines = [];
-		let orderLines = attributes.order_lines;
+		if (customer != null) {
+			
+			let shipment = new Object();
+			shipment.customerId = customer.id;
+			shipment.shipmentNumber =  attributes.visible_ref;
+			shipment.sellersReference = order.data.id;
+			shipment.termsOfDelivery = "Webshipper";
+			shipment.deliveryDate = Date.now();
+			shipment.shippingDeadline = Date.now();
+			shipment.sellerNumber = attributes.order_channel_id;
+			shipment.currencyCode = attributes.currency;
+			shipment.deliveryAddress = new Object();
+			setAddress(attributes.delivery_address, shipment.deliveryAddress);
+			shipment.contactPerson = new Object();
+			setContactPerson(attributes.delivery_address, shipment.contactPerson);
+			
+			let dropPoint = attributes.drop_point;
+			if (dropPoint != null) {
+				shipment.deliverToPickUpPoint = true;
+				shipment.pickUpPointId = dropPoint.drop_point_Id;
+			}
+			
+			shipment.setNotesOnDelivery = attributes.external_comment;
+			shipment.setNotesOnPacking = attributes.internal_comment;
+			shipment.setNotesOnShipping = shippingRate.data.attributes.name;
+			
+			shipment.shipmentLines = [];
+			let orderLines = attributes.order_lines;
+			
+			for (let i = 0; i < orderLines.length; i++) {
+			    let orderLine = orderLines[i];
+				let shipmentLine = new Object();
+				shipmentLine.numItemsOrdered = orderLine.quantity;
+				shipmentLine.salesPrice = orderLine.unit_price;
+				shipmentLine.notesOnPicking = orderLine.description;
+				shipmentLine.sellersReference = orderLine.id;
+				shipmentLine.stockKeepingUnit = orderLine.sku;
+				shipmentLine.sellersReference = orderLine.id;
+				shipment.shipmentLines.push(shipmentLine);
+			}
 		
-		for (let i = 0; i < orderLines.length; i++) {
-		    let orderLine = orderLines[i];
-			let shipmentLine = new Object();
-			shipmentLine.numItemsOrdered = orderLine.quantity;
-			shipmentLine.salesPrice = orderLine.unit_price;
-			shipmentLine.notesOnPicking = orderLine.description;
-			shipmentLine.sellersReference = orderLine.id;
-			shipmentLine.stockKeepingUnit = orderLine.sku;
-			shipmentLine.sellersReference = orderLine.id;
-			shipment.shipmentLines.push(shipmentLine);
-		}
-	
-		shipment.onHold = attributes.lock_state != null && attributes.lock_state == "locked";
+			shipment.onHold = attributes.lock_state != null && attributes.lock_state == "locked";
+			
+			response = await ims.post("shipments", shipment, { validateStatus: function (status) {
+				    return status >= 200 && status < 300 || status == 422; // default
+				}});
 		
-		response = await ims.post("shipments", shipment, { validateStatus: function (status) {
-			    return status >= 200 && status < 300 || status == 422; // default
-			}});
-	
-		if (response.status == 422) {
-			await errOrder(ws, order, response.data);
-		}
-		
+			if (response.status == 422) {
+				await errOrder(ws, order, response.data);
+			}
+		}		
 	}	
 }
 
@@ -365,9 +376,6 @@ async function errOrder(ws, order, message) {
 	attributes.status = "error";
 	attributes.error_message = message.messageText;
 	attributes.error_class = message.messageCode;
-	
-	console.log("Patching after error");
-	
 	await ws.patch("/orders/" + order.data.id, patch);
 }
 
