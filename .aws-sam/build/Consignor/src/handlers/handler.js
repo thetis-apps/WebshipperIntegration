@@ -735,7 +735,7 @@ exports.handleShippingLabelRequest = async (event, x) => {
 		    	for (let j = 0; i < labels.length; j++) {
 			    	let label = labels[j];
 					let shippingLabel = new Object();
-					shippingLabel.base64EncodedContent = label.attributes.getBase64;
+					shippingLabel.base64EncodedContent = label.attributes.base64;
 					shippingLabel.fileName = "RETURN_LABEL_" + shipment.id + "_" + (i + 1) + "_" + (j + 1) + ".pdf";
 					await ims.post("shipments/" + shipment.id + "/attachments", shippingLabel);
 				}
