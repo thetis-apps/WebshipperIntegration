@@ -13,7 +13,7 @@ Metadata:
     ReadmeUrl: README.md
     Labels: ['thetis-ims']
     HomePageUrl: https://github.com/thetis-apps/WebshipperIntegration
-    SemanticVersion: 1.5.1
+    SemanticVersion: 1.5.2
     SourceCodeUrl: https://github.com/thetis-apps/WebshipperIntegration
 
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
@@ -31,9 +31,11 @@ Parameters:
   ClientId:
     Description: Key of the parameter that has your Thetis client id as its value.
     Type: AWS::SSM::Parameter::Value<String>
+    Default: ThetisClientId
   ClientSecret:
     Description: Key of the parameter that has your Thetis client secret as its value.
     Type: AWS::SSM::Parameter::Value<String>
+    Default: ThetisClientSecret
   ApiKey:
     Description: The api key that gives access to the context in Thetis IMS.
     Type: String

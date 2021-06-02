@@ -732,7 +732,7 @@ exports.handleShippingLabelRequest = async (event, x) => {
 			    let returnShipment = returnShipments[i];
 		    	response = await ws.get(returnShipment.relationships.labels.links.related, { baseUrl: "" });
 				labels = response.data.data;
-		    	for (let j = 0; i < labels.length; j++) {
+		    	for (let j = 0; j < labels.length; j++) {
 			    	let label = labels[j];
 					let shippingLabel = new Object();
 					shippingLabel.base64EncodedContent = label.attributes.base64;
